@@ -359,7 +359,6 @@ tr.total td{border-top:2px solid var(--line-strong);background:var(--surface-2)}
         <button data-range="yesterday">Yesterday</button>
         <button data-range="7d">Last 7 days</button>
         <button data-range="month">This month</button>
-        <button data-range="all" title="All data from 1 April 2026">Since 1 Apr</button>
       </div>
       <div class="range">
         <span>From</span><input type="date" id="from" aria-label="From date">
@@ -597,7 +596,7 @@ const teamFor = n => { if(!n || isExcluded(n)) return null; const f=FULL[String(
 const productOfTeam = t => t===OC_TEAM ? "Office Chairs" : "Mobility";
 const aliasOf = {}; Object.entries(CONFIG.ALIASES).forEach(([k,v]) => aliasOf[k.trim().toLowerCase()] = v);
 
-let CALLS = [], SALES = [], FRT = [], PEND = [], STAGE = [], UPDATED = "", META = {};
+let SALES_ALL = [], CALLS = [], SALES = [], FRT = [], PEND = [], STAGE = [], UPDATED = "", META = {};
 const MONTHS = {};   // "2026-10" → decoded rows for that month (loaded on demand)
 const VIEWS = ["overview","agents","frt"];
 let state = { view: ({"#agents":"agents","#frt":"frt"})[location.hash] || "overview", range:"today", from:"", to:"", product:"All", team:"All", agent:"All", gran:"day", sortKey:"conn", sortDir:-1, fSort:"med", fDir:1, frtMode:"biz" };
@@ -631,7 +630,7 @@ const monthName = ym => MON[+ym.slice(5,7)-1]+" "+ym.slice(0,4);
 
 function ingest(){
   const conn = { "Mobility": new Set(["connected"]), "Office Chairs": new Set(["contacted"]) };
-  CALLS = []; SALES = []; FRT = []; PEND = []; STAGE = [];
+  CALLS = []; SALES = []; SALES_ALL = []; FRT = []; PEND = []; STAGE = [];
   const all = Object.values(MONTHS);
   all.forEach(M => M.calls.forEach(r => {
     const [tab,date,slot,agent,status,dispo,n] = r; const team = teamFor(agent); if(!team) return;
@@ -642,6 +641,8 @@ function ingest(){
   const byShort = {}; CALLS.forEach(c => byShort[short(c.agent)] = c.agent);
   const match = name => { const a = aliasOf[name.trim().toLowerCase()]; if(a) return byShort[short(a)] || a; return byShort[short(name)] || name.trim(); };
   all.forEach(M => M.sales.forEach(([tab,date,slot,agent,amount]) => {
+    SALES_ALL.push({ product: tab, date, amount, agent: String(agent||"").trim() });
+    if(!String(agent||"").trim()) return;
     if(isExcluded(agent)) return; const a = match(agent), team = teamFor(a) || teamFor(agent); if(!team) return;
     SALES.push({ product: productOfTeam(team), team, date, slot, agent: a, amount });
   }));
@@ -748,7 +749,7 @@ async function load(kind="all"){
     st.textContent = (CONFIG.DATA_URL ? "Live" : "Demo") + (UPDATED ? ` · Refreshed at ${fmtUpdated(UPDATED)}` : "") + (AUTH.name ? ` · ${AUTH.name}` : "");
     const msgs = [];
     const bf = META.backfill || {};
-    if(bf.done===false) msgs.push(`Pulling history from LSQ (${bf.pct||0}% done) — ${bf.text||""}. Older dates will fill in as it runs.${bf.error?" Last error: "+bf.error:""}`);
+    if(bf.done===false) msgs.push(`Pulling history from LSQ (${bf.pct||0}% done) — ${bf.text||""}. Older dates appear once it finishes.${bf.error?" Last error: "+bf.error:""}`);
     if((META.errors||[]).length) msgs.push("Sync warnings: " + META.errors.join(" · "));
     banner.style.display = msgs.length ? "block" : "none"; banner.textContent = msgs.join("  |  ");
   }catch(e){
@@ -835,6 +836,10 @@ function render(){
   $("foot").textContent = `Showing ${rangeText(state.from,state.to)} · ${state.product==="All"?"All products":state.product} · ${tl} · target ${CONFIG.DAILY_TARGET} unique connected calls per agent per day`;
 }
 
+/* With Team = All and Agent = All, revenue is the total of every order in the sales sheet
+   (incl. orders with no agent or an agent not in the lists). With a team or agent picked, only theirs. */
+const allRevenue = () => state.team==="All" && state.agent==="All";
+const totalSales = (from,to) => SALES_ALL.filter(r=>r.date>=from && r.date<=to && (state.product==="All"||r.product===state.product));
 function renderOverview(){
   const calls = CALLS.filter(inScope), sales = SALES.filter(inScope), frt = FRT.filter(inScope);
   const list = agentStats(calls, sales, frt);
@@ -848,10 +853,12 @@ function renderOverview(){
   $("kRate").textContent = pct(C,U);
   $("kTarget").textContent = pct(C,T);
   $("kTargetNote").textContent = T ? `${fmt(C)} of ${fmt(T)}` : "";
-  setNum("kRev", R, inr);
-  $("kRevNote").textContent = C ? `${inr(R/C)} per connected call` : "";
-  setNum("kOrders", O, v=>fmt(Math.round(v)));
-  $("kAovNote").textContent = O ? `Avg order ${inr(R/O)}` : "";
+  let RV=R, OV=O, extra=0;
+  if(allRevenue()){ const ts=totalSales(state.from,state.to); RV=ts.reduce((s,r)=>s+r.amount,0); OV=ts.length; extra=RV-R; }
+  setNum("kRev", RV, inr);
+  $("kRevNote").textContent = extra>0 ? `incl. ${inr(extra)} not tagged to a listed agent` : (C ? `${inr(RV/C)} per connected call` : "");
+  setNum("kOrders", OV, v=>fmt(Math.round(v)));
+  $("kAovNote").textContent = OV ? `Avg order ${inr(RV/OV)}` : "";
   const secs = frt.map(r=>r.sec);
   $("kFrt").textContent = secs.length ? hms(median(secs)) : "–";
   $("kFrtNote").textContent = secs.length ? `${fmt(secs.length)} leads · ${state.frtMode==="biz"?"working hours":"clock time"}` : "no FRT data";
@@ -933,7 +940,7 @@ function renderAgents(){
   const P = periodsInRange().map(k=>({k, label:pLabel(k), dials:0, uniq:0, conn:0, orders:0, rev:0, ad:new Set(), frt:[]}));
   const idx = {}; P.forEach((p,i)=>idx[p.k]=i);
   calls.forEach(r=>{ const p=P[idx[keyOf(r.date)]]; if(!p) return; p.dials+=r.dials; p.uniq+=r.u; p.conn+=r.uc; p.ad.add(r.date+"|"+r.agent); });
-  sales.forEach(r=>{ const p=P[idx[keyOf(r.date)]]; if(!p) return; p.orders++; p.rev+=r.amount; });
+  (allRevenue() ? totalSales(state.from,state.to) : sales).forEach(r=>{ const p=P[idx[keyOf(r.date)]]; if(!p) return; p.orders++; p.rev+=r.amount; });
   frt.forEach(r=>{ const p=P[idx[keyOf(r.date)]]; if(p) p.frt.push(r.sec); });
   const T = P.reduce((t,p)=>({dials:t.dials+p.dials, uniq:t.uniq+p.uniq, conn:t.conn+p.conn, orders:t.orders+p.orders, rev:t.rev+p.rev}), {dials:0,uniq:0,conn:0,orders:0,rev:0});
   const agentDays = new Set(calls.map(r=>r.date+"|"+r.agent)).size, workDays = new Set(calls.map(r=>r.date)).size;
@@ -1257,6 +1264,7 @@ function openReport(sc){
   const calls=CALLS.filter(pick), sales=SALES.filter(pick), frt=FRT.filter(pick);
   const list = agentStats(calls,sales,frt); const act = list.filter(a=>a.dials);
   const T = {dials:sum(list,"dials"),uniq:sum(list,"uniq"),conn:sum(list,"conn"),target:sum(list,"target"),rev:sum(list,"rev"),orders:sum(list,"orders")};
+  if(!sc.team){ const ts = SALES_ALL.filter(r=>r.date>=sc.from && r.date<=sc.to && (!sc.product||r.product===sc.product)); T.rev = ts.reduce((s,r)=>s+r.amount,0); T.orders = ts.length; }   // all teams = every order of the day
   const fs = frt.map(x=>x.sec);
   const teams={}; list.forEach(a=>{ const t=teams[a.team] ||= {uniq:0,conn:0,target:0,rev:0,orders:0,frt:[],n:0}; if(a.dials)t.n++; t.uniq+=a.uniq;t.conn+=a.conn;t.target+=a.target;t.rev+=a.rev;t.orders+=a.orders;t.frt.push(...a.frt); });
   const byRev = list.slice().sort((a,b)=>b.rev-a.rev), byConn = act.slice().sort((a,b)=>b.conn-a.conn);
