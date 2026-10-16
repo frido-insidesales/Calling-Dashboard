@@ -1,0 +1,1479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frido ISD Calling Performance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Settings are in the CONFIG block near the bottom of this file. */
+:root{
+  color-scheme: light;
+  --bg:#fbfaf6; --surface-1:#ffffff; --surface-2:#faf7ee; --line:#ece8dc; --line-strong:#ddd6c4;
+  --text-primary:#14130f; --text-secondary:#4d4a40; --text-muted:#76725f;
+  --yellow:#ffd101; --yellow-2:#ffb300; --accent:#8a5a00; --accent-soft:#fff4cc; --brand-dark:#141414;
+  --shadow-sm:0 1px 2px rgba(16,24,40,.05); --shadow-md:0 12px 28px -12px rgba(16,24,40,.18);
+  --series-connected:#e9a100;
+  --series-notconn:#5b6b85;
+  --good:#0ca30c; --warning:#fab219; --critical:#d03b3b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;color:var(--text-primary);font-family:"Inter",system-ui,sans-serif;font-size:14px;line-height:1.45}
+.wrap{max-width:1120px;margin:0 auto;padding:40px 16px 64px}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 22px;margin-bottom:8px;border-radius:12px;background:linear-gradient(120deg,#111 0%,#262421 100%);color:#fff;box-shadow:var(--shadow-md);border-bottom:3px solid var(--yellow)}
+header h1{color:#fff;font-size:clamp(20px,3vw,28px);margin:0 0 6px}
+header .status{color:rgba(255,255,255,.8)}
+.brand{display:flex;align-items:center;gap:16px;min-width:0}
+.logo{height:48px;width:auto;max-width:150px;object-fit:contain;border-radius:10px;display:block}
+.mark{display:grid;place-items:center;width:44px;height:44px;flex:none;border-radius:10px;background:var(--yellow);color:#111;font-weight:800;font-size:20px;letter-spacing:-.04em}
+header .btn-refresh{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#fff}
+header .btn-refresh:hover{background:var(--yellow);color:#111;border-color:var(--yellow)}
+h1{font-family:"Inter",system-ui,sans-serif;font-weight:700;letter-spacing:-.02em;font-size:clamp(26px,4vw,38px);margin:0 0 8px;letter-spacing:.2px}
+h2{position:relative;padding-left:12px;font-family:"Inter",system-ui,sans-serif;font-weight:700;letter-spacing:-.02em;font-size:21px;margin:0 0 4px}
+.sub{color:var(--text-muted);font-size:13px;margin:0 0 14px;padding-left:12px}
+h2::before{content:"";position:absolute;left:0;top:.2em;bottom:.2em;width:4px;border-radius:2px;background:#141414}
+.status{display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:13px}
+.dot{width:7px;height:7px;border-radius:50%;background:#3ddc84}
+.dot.demo{background:var(--warning)} .dot.err{background:var(--critical)}
+button,select,input{font:inherit;color:var(--text-primary);background:transparent;border:1px solid var(--line-strong);border-radius:4px;padding:8px 12px}
+button{cursor:pointer} button:hover{border-color:var(--text-muted)}
+button:focus-visible,select:focus-visible,input:focus-visible,th:focus-visible{outline:2px solid var(--yellow-2);outline-offset:2px}
+select option{background:#fff}
+button,select,input{background:var(--surface-1)}
+input[type=date]{color-scheme:light}
+.btn-refresh{display:flex;align-items:center;gap:8px;font-weight:500;white-space:nowrap}
+.filters{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:22px 0}
+.tabs{display:flex;flex-wrap:wrap;gap:4px}
+.tabs button{border:none;border-bottom:2px solid transparent;border-radius:0;color:var(--text-secondary);padding:8px 12px}
+.tabs button[aria-pressed=true]{color:var(--accent);border-bottom-color:var(--accent)}
+.range{display:flex;align-items:center;gap:8px;color:var(--text-secondary)}
+.selects{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap}
+.selects label{display:flex;align-items:center;gap:6px;color:var(--text-secondary);font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kpi{position:relative;padding:20px 22px;min-width:0;border:1px solid rgba(255,255,255,.7);border-radius:12px;background:var(--surface-1);box-shadow:var(--shadow-sm);overflow:hidden;transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease}
+.kpi::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--yellow-2),transparent);opacity:0;transition:opacity .25s}
+.kpi:hover{transform:translateY(-3px);border-color:var(--line-strong);box-shadow:var(--shadow-md)}
+.kpi:hover::before{opacity:1}
+.kpi.hero{background:linear-gradient(135deg,#141414 0%,#2a2722 100%);border-color:#141414}
+.kpi .lbl{color:var(--text-muted);font-size:12px;margin-bottom:10px}
+.kpi .val{font-family:"Inter",system-ui,sans-serif;font-weight:700;letter-spacing:-.02em;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.kpi.hero .val{color:var(--yellow);font-size:32px}
+.kpi.hero .lbl,.kpi.hero .note{color:rgba(255,255,255,.72)}
+.kpi .note{color:var(--text-muted);font-size:12px;margin-top:6px}
+section{margin-top:40px}
+.card{border:1px solid var(--line);border-radius:4px;background:var(--surface-1);padding:20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--text-secondary);margin:4px 0 8px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+.chart{position:relative;overflow-x:auto}
+.chart svg{width:100%;height:auto;display:block;min-width:560px}
+.axis text{fill:var(--text-muted);font-size:11px;font-family:"Inter",sans-serif}
+.grid line{stroke:var(--line);stroke-width:1}
+.tip{position:absolute;pointer-events:none;background:var(--surface-2);border:1px solid var(--line-strong);border-radius:4px;padding:8px 10px;font-size:12px;color:var(--text-primary);white-space:nowrap;opacity:0;transition:opacity .1s;z-index:5}
+.tip b{font-weight:600}.tip .row{display:flex;align-items:center;gap:6px;color:var(--text-secondary)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{font-weight:500;color:var(--text-muted);font-size:12px;text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th.sortable{cursor:pointer;user-select:none} th.sortable:hover{color:var(--text-secondary)}
+th[aria-sort=descending]::after{content:" ↓"} th[aria-sort=ascending]::after{content:" ↑"}
+td{padding:11px 8px;border-bottom:1px solid var(--line)}
+td.num,th.num{text-align:right;white-space:nowrap}
+tr:hover td{background:var(--surface-2)}
+.rank{color:var(--text-muted);width:32px}
+#teamTable td:first-child,#board td:nth-child(2){white-space:nowrap}
+.team-tag{color:var(--text-muted);font-size:12px}
+.bar{position:relative;height:6px;background:var(--line);border-radius:3px;min-width:70px}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:linear-gradient(90deg,var(--yellow),var(--yellow-2))}
+.prog{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.prog span{width:42px;text-align:right}
+.flag{font-size:11px;padding:2px 6px;border-radius:3px;border:1px solid var(--line-strong);color:var(--text-secondary);margin-left:6px}
+.scroll{overflow-x:auto}
+.hbar-row{display:grid;grid-template-columns:150px 1fr 60px;align-items:center;gap:10px;padding:6px 0;font-size:13px}
+.hbar-row .name{color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hbar-row .track i{display:block;height:10px;border-radius:0 4px 4px 0;background:linear-gradient(90deg,var(--yellow),var(--yellow-2))}
+.hbar-row .v{text-align:right;font-variant-numeric:tabular-nums}
+.empty{color:var(--text-muted);padding:24px 0;text-align:center}
+.banner{margin-top:16px;padding:10px 14px;border:1px solid var(--line-strong);border-left:3px solid var(--warning);border-radius:4px;color:var(--text-secondary);font-size:13px;display:none}
+footer{margin-top:40px;color:var(--text-muted);font-size:12px}
+html{background:#fce47d}
+body{min-height:100vh;position:relative}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:
+  radial-gradient(55% 45% at 0% 0%,#fdfcf8 0%,rgba(253,252,248,0) 70%),
+  radial-gradient(40% 38% at 78% 14%,#fed517 0%,rgba(254,213,23,0) 72%),
+  radial-gradient(45% 40% at 98% 58%,#fed742 0%,rgba(254,215,66,0) 72%),
+  radial-gradient(50% 42% at 8% 88%,#f6d85b 0%,rgba(246,216,91,0) 72%),
+  radial-gradient(40% 35% at 100% 100%,#fef8e6 0%,rgba(254,248,230,0) 72%),
+  linear-gradient(160deg,#fbf2cd 0%,#fce47d 45%,#fdd84f 100%)}
+body{--text-muted:#5e5a45;--text-secondary:#3f3c2e}
+/* ---------- polish & motion ---------- */
+.card{border-radius:12px;box-shadow:0 8px 24px -14px rgba(90,70,0,.35);border-color:rgba(255,255,255,.7)!important;transition:border-color .25s ease,box-shadow .25s ease}
+.card:hover{border-color:var(--line-strong);box-shadow:var(--shadow-md)}
+.filters{position:sticky;top:0;z-index:20;margin:0 -16px;padding:16px;background:rgba(254,240,170,.45);border-radius:14px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid transparent}
+.tabs{background:rgba(255,255,255,.75);border:1px solid var(--line);border-radius:999px;padding:3px}
+.tabs button{border:none;border-radius:999px;padding:7px 14px;transition:background .2s,color .2s}
+.tabs button:hover{background:var(--surface-2);color:var(--text-primary)}
+.tabs button[aria-pressed=true]{background:#141414;font-weight:600;color:var(--yellow);border-bottom-color:transparent}
+button,select,input{transition:border-color .2s,background .2s}
+select:hover,input:hover{border-color:var(--text-muted)}
+.btn-refresh{border-radius:999px;padding:8px 16px}
+
+.btn-refresh.spin svg{animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dot{position:relative}
+.dot::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid currentColor;color:inherit;opacity:0}
+.dot{color:var(--good)} .dot.demo{color:var(--warning)} .dot.err{color:var(--critical)}
+.dot::after{border-color:currentColor;animation:pulse 2s ease-out infinite}
+@keyframes pulse{0%{opacity:.6;transform:scale(.6)}100%{opacity:0;transform:scale(1.8)}}
+/* skeleton while loading */
+.is-loading .kpi .val,.is-loading .kpi .note{color:transparent!important;border-radius:6px;background:linear-gradient(90deg,var(--surface-2) 0%,var(--line-strong) 50%,var(--surface-2) 100%);background-size:200% 100%;animation:shimmer 1.2s linear infinite;max-width:65%}
+.is-loading .kpi .note{max-width:45%}
+@keyframes shimmer{to{background-position:-200% 0}}
+/* sections */
+section{animation:fadeUp .5s ease both}
+section:nth-of-type(2){animation-delay:.08s} section:nth-of-type(3){animation-delay:.16s}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* hour chart */
+.col .seg{transform-box:fill-box;transform-origin:bottom;animation:rise .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes rise{from{transform:scaleY(0)}}
+.col .bg{fill:transparent;transition:fill .15s}
+.col:hover .bg{fill:rgba(255,198,41,.12)}
+.vlab{fill:var(--text-secondary);font-size:11px;font-weight:600;font-family:"Inter",sans-serif}
+.col{transition:opacity .2s}
+svg.plot:hover .col{opacity:.4} svg.plot:hover .col:hover{opacity:1}
+.tip{box-shadow:var(--shadow-md);background:#fff;border-radius:8px;padding:10px 12px;transition:opacity .12s,transform .12s}
+/* tables */
+tbody tr td{transition:background .15s}
+tbody tr:hover td{background:var(--surface-2)}
+tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--yellow-2)}
+.who{display:inline-flex;align-items:center;gap:10px}
+.av{display:inline-grid;place-items:center;width:30px;height:30px;flex:none;border-radius:50%;background:var(--accent-soft);border:1px solid #f3dc8f;font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.3px;transition:border-color .2s,color .2s}
+tbody tr:hover .av{border-color:var(--yellow-2);background:var(--yellow);color:#111}
+.medal{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;font-size:11px;font-weight:700;color:#fff}
+.m1{background:#c99212}.m2{background:#8a94a6}.m3{background:#b26a35}
+.bar{height:6px;overflow:hidden}
+.bar i{transform-origin:left;animation:grow .9s cubic-bezier(.2,.8,.2,1) both}
+.bar i.done{background:var(--good)}
+@keyframes grow{from{transform:scaleX(0)}}
+.hbar-row{border-radius:6px;padding:7px 8px;margin:0 -8px;transition:background .15s}
+.hbar-row:hover{background:var(--surface-2)}
+.hbar-row .track i{transform-origin:left;animation:grow .9s cubic-bezier(.2,.8,.2,1) both;transition:filter .15s}
+.hbar-row:hover .track i{filter:brightness(1.25)}
+.hbar-row:hover .name{color:var(--text-primary)}
+/* views */
+.views{display:flex;gap:6px;margin:16px 0 0;padding:5px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.8);border-radius:14px;width:max-content;max-width:100%;box-shadow:0 6px 18px -12px rgba(90,70,0,.35)}
+.views button{border:none;background:transparent;border-radius:10px;padding:10px 20px;font-weight:600;color:var(--text-secondary);transition:background .2s,color .2s}
+.views button:hover{background:rgba(255,255,255,.9);color:var(--text-primary)}
+.views button[aria-selected=true]{background:#141414;color:var(--yellow)}
+.a-controls{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin:0 0 16px}
+.a-controls label{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text-secondary)}
+.a-controls select{min-width:200px;font-weight:600}
+#agentSel{min-width:260px}
+.pills{display:flex;gap:4px;background:rgba(255,255,255,.75);border:1px solid var(--line);border-radius:999px;padding:3px}
+.pills button{border:none;border-radius:999px;padding:7px 14px;background:transparent;color:var(--text-secondary)}
+.pills button:hover{background:var(--surface-2)}
+.pills button[aria-pressed=true]{background:#141414;color:var(--yellow);font-weight:600}
+.kpis-6{grid-template-columns:repeat(6,1fr)}
+.kpis-6 .kpi{padding:18px}
+.kpis-6 .kpi .val,.kpis-6 .kpi.hero .val{font-size:clamp(18px,1.8vw,24px)}
+#aCompare td:first-child,#aPeriods td:first-child{white-space:nowrap}
+.kpis-6 .kpi:nth-child(-n+4){border-bottom:1px solid rgba(255,255,255,.7)}
+#aCompare tbody tr{cursor:pointer}
+.delta-up{color:#0a7a0a;font-weight:600} .delta-dn{color:#b42318;font-weight:600}
+@media (max-width:1000px){.kpis-6{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:520px){.kpis-6{grid-template-columns:repeat(2,1fr)} .a-controls select{min-width:0;width:100%} .a-controls label{width:100%}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+@media (max-width:860px){
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .grid2{grid-template-columns:1fr}
+  .selects{margin-left:0}
+}
+@media (max-width:520px){
+  header{flex-direction:column}
+  .kpi{padding:16px}
+  .kpi .val,.kpi.hero .val{font-size:21px}
+  header{align-items:flex-start}
+  .brand{flex-direction:column;align-items:flex-start;gap:12px}
+  .logo{height:40px}
+  .range{flex-wrap:wrap;width:100%} .range input{flex:1;min-width:0}
+  .hbar-row{grid-template-columns:110px 1fr 50px}
+}
+
+/* ---------- v3: sticky top, FRT, assistant ---------- */
+.wrap{padding-top:16px}
+.topbar{position:sticky;top:0;z-index:30;margin:0 -16px;padding:12px 16px 10px;transition:padding .2s}
+.topbar::before{content:"";position:absolute;inset:0;z-index:-1;background:rgba(253,236,150,.55);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:0 0 16px 16px;opacity:0;transition:opacity .2s;box-shadow:0 10px 24px -18px rgba(90,70,0,.6)}
+.topbar.scrolled::before{opacity:1}
+.topbar header{margin-bottom:10px;transition:padding .2s}
+.topbar.scrolled header{padding:10px 18px}
+.topbar.scrolled header h1{font-size:20px;margin:0 0 2px}
+.topbar.scrolled .logo{height:36px}
+.filters{position:static;margin:0;padding:10px 0 0;background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+.navrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.views{margin:0}
+.views button{padding:8px 14px}
+.filters{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.filters .selects{margin-left:auto}
+.views{padding:3px;border-radius:999px}
+.views button{border-radius:999px}
+.view-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin:18px 0 16px}
+.view-ctl label{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text-secondary)}
+.view-ctl select{min-width:190px;font-weight:600}
+.view-ctl .agentsel{min-width:250px}
+.kpi .note b{color:inherit}
+.info{background:rgba(255,255,255,.82);border:1px solid rgba(255,255,255,.9);border-radius:12px;padding:14px 18px;margin:0 0 18px;box-shadow:0 8px 24px -16px rgba(90,70,0,.35)}
+.info summary{cursor:pointer;font-weight:700;list-style:none;display:flex;align-items:center;gap:8px}
+.info summary::-webkit-details-marker{display:none}
+.info summary::before{content:"i";display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#141414;color:var(--yellow);font-size:12px;font-weight:700;font-style:italic}
+.info ol,.info ul{margin:10px 0 0;padding-left:20px;color:var(--text-secondary)}
+.info li{margin:4px 0}
+.speed-row{display:grid;grid-template-columns:120px 1fr 70px 60px;gap:10px;align-items:center;padding:7px 8px;margin:0 -8px;border-radius:6px}
+.speed-row:hover{background:var(--surface-2)}
+.speed-row .track{height:12px;background:var(--line);border-radius:6px;overflow:hidden}
+.speed-row .track i{display:block;height:100%;border-radius:6px;transform-origin:left;animation:grow .9s cubic-bezier(.2,.8,.2,1) both}
+.speed-row .v,.speed-row .p{text-align:right;font-variant-numeric:tabular-nums}
+.speed-row .p{color:var(--text-muted)}
+.mono{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.good{color:#0a7a0a;font-weight:600}.slow{color:#b42318;font-weight:600}
+th.sortable{cursor:pointer}
+.clickrows tbody tr{cursor:pointer}
+/* assistant */
+.ask-fab{position:fixed;right:22px;bottom:22px;z-index:60;display:flex;align-items:center;gap:10px;border:none;border-radius:999px;padding:12px 18px 12px 14px;background:#141414;color:#fff;font-weight:600;box-shadow:0 14px 30px -10px rgba(0,0,0,.45);cursor:pointer;transition:transform .2s}
+.ask-fab:hover{transform:translateY(-2px)}
+.ask-fab .ic{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--yellow);color:#111}
+.ask{position:fixed;right:22px;bottom:22px;z-index:61;width:400px;max-width:calc(100vw - 32px);height:600px;max-height:calc(100vh - 44px);display:flex;flex-direction:column;background:#fff;border-radius:16px;box-shadow:0 24px 60px -16px rgba(0,0,0,.4);overflow:hidden;border:1px solid var(--line)}
+.ask[hidden]{display:none}
+.ask-head{display:flex;align-items:center;gap:10px;padding:14px 16px;background:#141414;color:#fff}
+.ask-head .ic{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--yellow);color:#111;font-weight:800}
+.ask-head b{display:block;font-size:15px}
+.ask-head small{color:rgba(255,255,255,.7);font-size:12px}
+.ask-head button{margin-left:auto;border:none;background:transparent;color:#fff;font-size:20px;line-height:1;padding:4px 8px;cursor:pointer}
+.ask-msgs{flex:1;overflow-y:auto;padding:16px;background:#faf8f2;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:92%;padding:10px 13px;border-radius:12px;font-size:13.5px;line-height:1.5}
+.msg.me{align-self:flex-end;background:#141414;color:#fff;border-bottom-right-radius:4px}
+.msg.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+.msg.bot table{width:100%;margin-top:8px;font-size:12.5px}
+.msg.bot th,.msg.bot td{padding:5px 6px}
+.msg.bot .scope{display:block;margin-top:8px;color:var(--text-muted);font-size:11.5px}
+.msg.bot p{margin:0 0 6px}
+.chips{display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;gap:6px;padding:10px 12px 4px;background:#fff;border-top:1px solid var(--line)}
+.chips button{flex:none;white-space:nowrap;border:1px solid var(--line-strong);border-radius:999px;padding:5px 10px;font-size:12px;background:#fff;cursor:pointer}
+.chips button:hover{background:var(--accent-soft);border-color:var(--yellow-2)}
+.ask-in{display:flex;gap:8px;padding:10px 12px 12px;background:#fff}
+.ask-in input{flex:1;border-radius:999px;padding:10px 14px;border:1px solid var(--line-strong)}
+.ask-in button{border:none;border-radius:999px;background:var(--yellow);color:#111;font-weight:700;padding:0 16px;cursor:pointer}
+@media (max-width:760px){
+  .topbar.scrolled .filters{display:none}
+  .topbar.scrolled header{padding:8px 12px;flex-direction:row;align-items:center}
+  .topbar.scrolled .brand{flex-direction:row;align-items:center;gap:10px}
+  .topbar.scrolled header h1{font-size:14px}
+  .topbar.scrolled .logo{height:28px}
+  .topbar.scrolled .btn-refresh{padding:6px 10px;font-size:12px}
+  .ask{right:0;bottom:0;width:100vw;max-width:100vw;height:100vh;max-height:100vh;border-radius:0}
+  .ask-fab{right:14px;bottom:14px}
+  .speed-row{grid-template-columns:90px 1fr 50px 44px}
+  .view-ctl select,.view-ctl .agentsel{min-width:0;width:100%} .view-ctl label{width:100%}
+}
+/* login + report */
+.hbtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+body.locked .wrap, body.locked .ask-fab, body.locked .ask{display:none!important}
+.login{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:16px}
+.login[hidden]{display:none}
+.login-card{width:380px;max-width:100%;background:#fff;border-radius:18px;padding:32px 28px;box-shadow:0 30px 70px -20px rgba(90,70,0,.45);display:flex;flex-direction:column;gap:12px}
+.login-logo img{height:52px;border-radius:10px;display:block}
+.login-title{padding:0;margin:8px 0 0;font-size:22px} .login-title::before{display:none}
+.login-sub{margin:0 0 6px;color:var(--text-muted)}
+.login-card label{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:13px;color:var(--text-secondary)}
+.login-card input{border-radius:10px;padding:11px 12px;font-size:15px}
+.login-card input:focus{outline:2px solid var(--yellow-2);outline-offset:1px}
+.login-card button{margin-top:6px;border:none;border-radius:10px;padding:12px;background:#141414;color:var(--yellow);font-weight:700;font-size:15px;cursor:pointer}
+.login-card button:disabled{opacity:.6;cursor:wait}
+.login-err{min-height:18px;color:#b42318;font-size:13px;font-weight:600}
+.login-foot{margin:6px 0 0;color:var(--text-muted);font-size:12px;text-align:center}
+.msg.bot h3,.msg.bot h4{margin:8px 0 4px;font-size:14px}
+.msg.bot ul,.msg.bot ol{margin:4px 0 6px;padding-left:18px}
+.msg.bot .pdf{display:inline-block;margin-top:8px;font-size:12px;font-weight:600;border:1px solid var(--line-strong);border-radius:999px;padding:4px 10px;background:#fff;cursor:pointer}
+.msg.bot .pdf:hover{background:var(--accent-soft)}
+.msg.bot .ai-tag{display:inline-block;margin-top:6px;font-size:11px;color:var(--text-muted)}
+.typing{display:inline-flex;gap:4px} .typing i{width:6px;height:6px;border-radius:50%;background:#bbb;animation:blink 1s infinite} .typing i:nth-child(2){animation-delay:.15s} .typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+/* v4: section downloads, lead stages, FRT mode */
+h2 .sec-tools{display:inline-flex;gap:6px;margin-left:12px;vertical-align:middle;opacity:.55;transition:opacity .2s}
+section:hover h2 .sec-tools, .grid2>div:hover h2 .sec-tools, h2 .sec-tools:focus-within{opacity:1}
+h2 .sec-tools button{font-size:11.5px;font-weight:600;letter-spacing:0;padding:3px 10px;border-radius:999px;border:1px solid var(--line-strong);background:#fff;color:var(--text-secondary);cursor:pointer}
+h2 .sec-tools button:hover{background:#141414;color:var(--yellow);border-color:#141414}
+.grid2>div{min-width:0}
+td.heat{background:rgba(255,179,0,var(--h))}
+tr.total td{border-top:2px solid var(--line-strong);background:var(--surface-2)}
+.kpi .val.val-text{font-size:19px;line-height:1.25;overflow-wrap:anywhere}
+.mode-note{color:var(--text-muted);font-size:12.5px;margin:-6px 0 14px}
+@media (hover:none){ h2 .sec-tools{opacity:1} }
+@media (max-width:760px){ .views{width:100%;overflow-x:auto;scrollbar-width:none} .views::-webkit-scrollbar{display:none} .views button{flex:none;white-space:nowrap;padding:8px 12px} }
+</style>
+</head>
+<body>
+<div class="login" id="login" hidden>
+  <form class="login-card" id="loginForm" autocomplete="on">
+    <div class="login-logo" id="loginLogo"></div>
+    <h2 class="login-title">ISD Calling Performance</h2>
+    <p class="login-sub">Sign in to view the dashboard</p>
+    <label>Username<input id="lu" name="username" autocomplete="username" required></label>
+    <label>Password<input id="lp" name="password" type="password" autocomplete="current-password" required></label>
+    <div class="login-err" id="loginErr" role="alert"></div>
+    <button type="submit" id="loginBtn">Sign in</button>
+    <p class="login-foot">Confidential · Frido internal use only</p>
+  </form>
+</div>
+<div class="wrap">
+  <div class="topbar" id="topbar">
+    <header>
+      <div class="brand">
+        <span id="brandMark" class="mark" aria-hidden="true">F</span>
+        <div>
+          <h1>Frido ISD Calling Performance Dashboard</h1>
+          <div class="status"><span class="dot" id="dot"></span><span id="statusText">Connecting…</span></div>
+        </div>
+      </div>
+      <div class="hbtns">
+        <button class="btn-refresh" id="reportBtn" aria-label="Download report">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>
+          Report
+        </button>
+        <button class="btn-refresh" id="refreshBtn" aria-label="Refresh data">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+          Refresh
+        </button>
+        <button class="btn-refresh" id="logoutBtn" aria-label="Sign out" hidden>Sign out</button>
+      </div>
+    </header>
+    <div class="filters">
+      <nav class="views" role="tablist" aria-label="Dashboard views">
+        <button role="tab" data-view="overview" aria-selected="true">Overview</button>
+        <button role="tab" data-view="agents" aria-selected="false">Agent Analysis</button>
+        <button role="tab" data-view="frt" aria-selected="false">FRT Analysis</button>
+      </nav>
+      <div class="tabs" role="group" aria-label="Date range">
+        <button data-range="today">Today</button>
+        <button data-range="yesterday">Yesterday</button>
+        <button data-range="7d">Last 7 days</button>
+        <button data-range="month">This month</button>
+        <button data-range="all" title="All data from 1 April 2026">Since 1 Apr</button>
+      </div>
+      <div class="range">
+        <span>From</span><input type="date" id="from" aria-label="From date">
+        <span>to</span><input type="date" id="to" aria-label="To date">
+      </div>
+      <div class="selects">
+        <label>Product <select id="product"></select></label>
+        <label>Team <select id="team"></select></label>
+      </div>
+    </div>
+  </div>
+  <div class="banner" id="banner"></div>
+
+  <!-- ================= OVERVIEW ================= -->
+  <div id="view-overview">
+  <div class="kpis" style="margin-top:18px">
+    <div class="kpi hero"><div class="lbl">Connected calls (unique)</div><div class="val" id="kConnected">–</div><div class="note" id="kConnectedNote"></div></div>
+    <div class="kpi"><div class="lbl">Numbers dialed (unique)</div><div class="val" id="kCalls">–</div><div class="note" id="kCallsNote"></div></div>
+    <div class="kpi"><div class="lbl">Connect rate</div><div class="val" id="kRate">–</div><div class="note">unique connected ÷ unique dialed</div></div>
+    <div class="kpi"><div class="lbl">Target achieved</div><div class="val" id="kTarget">–</div><div class="note" id="kTargetNote"></div></div>
+    <div class="kpi hero"><div class="lbl">Revenue</div><div class="val" id="kRev">–</div><div class="note" id="kRevNote"></div></div>
+    <div class="kpi"><div class="lbl">Orders</div><div class="val" id="kOrders">–</div><div class="note" id="kAovNote"></div></div>
+    <div class="kpi"><div class="lbl">Median FRT (first call)</div><div class="val mono" id="kFrt">–</div><div class="note" id="kFrtNote"></div></div>
+    <div class="kpi"><div class="lbl">Active agents</div><div class="val" id="kAgents">–</div><div class="note" id="kAgentsNote"></div></div>
+  </div>
+
+  <section>
+    <h2>Calls by hour</h2>
+    <p class="sub">Unique numbers per calling slot · a number called twice in the same hour counts once</p>
+    <div class="card">
+      <div class="legend"><span><i class="sw" style="background:var(--series-connected)"></i>Connected</span><span><i class="sw" style="background:var(--series-notconn)"></i>Not connected</span></div>
+      <div class="chart" id="hourChart"></div>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div>
+      <h2>Teams</h2>
+      <p class="sub">Unique calls, target progress, revenue and FRT by team</p>
+      <div class="card scroll"><table id="teamTable"></table></div>
+    </div>
+    <div>
+      <h2>Top dispositions</h2>
+      <p class="sub">Most common call outcomes in the range</p>
+      <div class="card" id="dispo"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Leaderboard — by agent</h2>
+    <p class="sub">Click a column to sort · Dials include repeat calls to the same number</p>
+    <div class="card scroll"><table id="board"></table></div>
+  </section>
+  </div>
+
+  <!-- ================= AGENT ANALYSIS ================= -->
+  <div id="view-agents" hidden>
+    <div class="view-ctl">
+      <label>Team <select class="teamsel" data-for="agents"></select></label>
+      <label>Agent <select class="agentsel" id="agentSel"></select></label>
+      <div class="pills" role="group" aria-label="Trend period">
+        <button data-gran="day" aria-pressed="true">Day-wise</button>
+        <button data-gran="week" aria-pressed="false">Week-wise</button>
+      </div>
+    </div>
+    <div class="kpis kpis-6">
+      <div class="kpi hero"><div class="lbl">Connected (unique)</div><div class="val" id="aConn">–</div><div class="note" id="aConnNote"></div></div>
+      <div class="kpi"><div class="lbl">Dialed (unique)</div><div class="val" id="aCalls">–</div><div class="note" id="aCallsNote"></div></div>
+      <div class="kpi"><div class="lbl">Connect rate</div><div class="val" id="aRate">–</div><div class="note" id="aRateNote"></div></div>
+      <div class="kpi hero"><div class="lbl">Revenue</div><div class="val" id="aRev">–</div><div class="note" id="aRevNote"></div></div>
+      <div class="kpi"><div class="lbl">Orders</div><div class="val" id="aOrders">–</div><div class="note" id="aAov"></div></div>
+      <div class="kpi"><div class="lbl">Median FRT</div><div class="val mono" id="aFrt">–</div><div class="note" id="aFrtNote"></div></div>
+    </div>
+    <section>
+      <h2><span id="aCallsTitle">Calls trend</span></h2>
+      <p class="sub">Unique connected and not-connected numbers per period</p>
+      <div class="card">
+        <div class="legend"><span><i class="sw" style="background:var(--series-connected)"></i>Connected</span><span><i class="sw" style="background:var(--series-notconn)"></i>Not connected</span></div>
+        <div class="chart" id="aCallsChart"></div>
+      </div>
+    </section>
+    <section>
+      <h2><span id="aRevTitle">Revenue trend</span></h2>
+      <p class="sub">Revenue per period · hover for orders</p>
+      <div class="card"><div class="chart" id="aRevChart"></div></div>
+    </section>
+    <section>
+      <h2>Period breakdown</h2>
+      <p class="sub">Every day or week in the selected range · ▲▼ compared with the previous period</p>
+      <div class="card scroll"><table id="aPeriods"></table></div>
+    </section>
+    <section id="aCompareWrap">
+      <h2>Agent comparison</h2>
+      <p class="sub">Per-day averages in the selected range · click an agent to see their trends</p>
+      <div class="card scroll"><table id="aCompare" class="clickrows"></table></div>
+    </section>
+  </div>
+
+  <!-- ================= FRT ANALYSIS ================= -->
+  <div id="view-frt" hidden>
+    <div class="view-ctl">
+      <label>Team <select class="teamsel" data-for="frt"></select></label>
+      <label>Agent <select class="agentsel" id="fAgentSel"></select></label>
+      <div class="pills" role="group" aria-label="FRT clock">
+        <button data-mode="biz" aria-pressed="true">Working hours (10 AM–8 PM)</button>
+        <button data-mode="real" aria-pressed="false">Clock time</button>
+      </div>
+      <div class="pills" role="group" aria-label="Trend period">
+        <button data-gran="day" aria-pressed="true">Day-wise</button>
+        <button data-gran="week" aria-pressed="false">Week-wise</button>
+      </div>
+    </div>
+    <p class="mode-note" id="fModeNote"></p>
+    <details class="info">
+      <summary>How FRT is calculated</summary>
+      <ol>
+        <li><b>FRT (First Response Time)</b> = time of the <b>first call</b> on a lead − the time the lead was <b>created in LSQ</b>. Shown as hh:mm:ss.</li>
+        <li><b>Working hours (default):</b> only time between <b>10 AM and 8 PM</b> counts, every day of the week. A lead created at 8:45 PM and called at 10:15 AM the next morning has an FRT of 15 minutes. Switch to <b>Clock time</b> to count every minute.</li>
+        <li>Each lead is counted <b>once</b>, using its earliest call (by any agent). The FRT belongs to the agent who made that first call.</li>
+        <li>Leads are grouped by the <b>date the lead was created</b>, so “Today” means leads created today. Data starts from <b>1 April 2026</b>.</li>
+        <li><b>Not called yet</b> = leads created in the range with no call so far; they are shown under the lead owner and are not part of the median.</li>
+        <li><b>Median</b> = the middle FRT (half the leads were faster). <b>Average</b> is shown alongside. Times are exact to the second.</li>
+      </ol>
+    </details>
+    <div class="kpis">
+      <div class="kpi hero"><div class="lbl">Median FRT</div><div class="val mono" id="fMed">–</div><div class="note" id="fMedNote"></div></div>
+      <div class="kpi"><div class="lbl">Average FRT</div><div class="val mono" id="fAvg">–</div><div class="note" id="fAvgNote"></div></div>
+      <div class="kpi"><div class="lbl">Leads called</div><div class="val" id="fLeads">–</div><div class="note" id="fLeadsNote"></div></div>
+      <div class="kpi"><div class="lbl">Not called yet</div><div class="val" id="fPend">–</div><div class="note" id="fPendNote"></div></div>
+      <div class="kpi"><div class="lbl">Within 5 min</div><div class="val" id="f5">–</div><div class="note" id="f5Note"></div></div>
+      <div class="kpi"><div class="lbl">Within 1 hour</div><div class="val" id="f60">–</div><div class="note" id="f60Note"></div></div>
+      <div class="kpi"><div class="lbl" id="f24Lbl">After 1 working day</div><div class="val" id="f24">–</div><div class="note" id="f24Note"></div></div>
+      <div class="kpi"><div class="lbl">Connected on first call</div><div class="val" id="fFc">–</div><div class="note" id="fFcNote"></div></div>
+    </div>
+    <section>
+      <h2><span id="fTrendTitle">FRT trend</span></h2>
+      <p class="sub">Median FRT per period by lead-created date · hover for average and lead count</p>
+      <div class="card"><div class="chart" id="fTrendChart"></div></div>
+    </section>
+    <section class="grid2">
+      <div>
+        <h2>Response speed</h2>
+        <p class="sub">How quickly leads got their first call</p>
+        <div class="card" id="fSpeed"></div>
+      </div>
+      <div>
+        <h2>FRT by lead-created hour</h2>
+        <p class="sub">Median FRT for leads created in each hour</p>
+        <div class="card"><div class="chart" id="fHourChart"></div></div>
+      </div>
+    </section>
+    <section>
+      <h2>Period breakdown</h2>
+      <p class="sub">Every day or week in the selected range</p>
+      <div class="card scroll"><table id="fPeriods"></table></div>
+    </section>
+    <section id="fAgentWrap">
+      <h2>FRT by agent</h2>
+      <p class="sub">Leads where the agent made the first call · click a column to sort, a row to drill in</p>
+      <div class="card scroll"><table id="fAgents" class="clickrows"></table></div>
+    </section>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<!-- ================= ASSISTANT ================= -->
+<button class="ask-fab" id="askFab" aria-label="Open Frido Assistant"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></span>Ask Frido</button>
+<div class="ask" id="askPanel" hidden role="dialog" aria-label="Frido Assistant">
+  <div class="ask-head"><span class="ic">F</span><div><b>Frido Assistant</b><small>Answers from live dashboard data</small></div><button id="askClose" aria-label="Close">×</button></div>
+  <div class="ask-msgs" id="askMsgs" aria-live="polite"></div>
+  <div class="chips" id="askChips"></div>
+  <form class="ask-in" id="askForm"><input id="askInput" autocomplete="off" placeholder="Ask about calls, revenue, FRT…" aria-label="Your question"><button type="submit">Ask</button></form>
+</div>
+<script>
+/* =====================================================================
+   CONFIG — edit these values
+   ===================================================================== */
+const CONFIG = {
+  // Web app URL from Apps Script (Deploy → Web app). Leave empty to preview with demo data.
+  DATA_URL: "https://script.google.com/macros/s/AKfycbyini8mSTvp8N1XWHh4giEfbeMA0m9sbqvaL8vOCSn1-zajpTkbTMF3o3o7UlWDG1c/exec",
+
+  // Logo: image URL or data: URI (leave empty to show the "F" badge)
+  LOGO_URL: "data:image/png;base64,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",
+
+  DATA_START: "2026-04-01",     // first date with data (history pulled from LSQ)
+  DAILY_TARGET: 100,            // unique connected calls per agent per day
+  AUTO_REFRESH_MINUTES: 5,
+
+  // ONLY agents listed here are shown. Team A/B/C = Mobility, OFFICE_CHAIRS = Office Chairs.
+  // Names can be full ("Aditya Nigam") or first name + initial ("Vaishali K").
+  TEAMS: {
+    "Team C – Ashwin": ["Aditya Nigam","Aditya Phule","Nikhil Kherde","Kaif Mutwali","Bipasha Saha","Sonali Chatap","Lajri P","Vedika Awal","Rohit B"],
+    "Team B – Kajal":  ["Asif Javed","Prerna Bhojwani","Vimala Chaudhary","Sanskar Sahu","Vivek S","Prasad P","Vansh Kumar","Vanshri M","Vrushali Patole","Deepali Tondre","Pranay K"],
+    "Team A – Sagar":  ["Aditi Nagle","Ananya Raj","Ashutosh Patil","Karina Panchal","Prajwal Mute","Pranjal Jadhao","Seeya Arondekar","Arundhaty Menon","Yash Kanake"]
+  },
+  OFFICE_CHAIRS: ["Epeksha Bhusari","Vaishali K","Khushi J","Shashank M","Shreegun S","Sanskar V","Kartik Mahale","Suyesh T","Palak T","Shiwani C","Nikita H","Tanya D","Dhriti S"],
+
+  // Sales name → calls name, when the automatic match is wrong
+  ALIASES: {
+    "Vanshiri M": "Vanshri M",
+    "Vaishali K": "Vaishali Kale",
+    "Kartik M":   "Kartik Mahale"
+  },
+
+  // Never shown, even if listed above
+  EXCLUDE: ["Vivek I","Hemant M","Ashwin N","Priyanshi C","Chirag A","Mrunmai M","Dhanendra Kumar","Savio A"]
+};
+const OC_TEAM = "Office Chairs";
+
+/* Hour slots — same numbering as the Activity Hour column */
+const SLOTS = ["Before 10","10–11","11–12","12–1","1–2","2–3","3–4","4–5","5–6","6–7","7–8","8 PM+"];
+
+/* ===================================================================== */
+const $ = id => document.getElementById(id);
+const fmt = n => Number(n||0).toLocaleString("en-IN");
+const inr = n => "₹" + Math.round(n||0).toLocaleString("en-IN");
+const pct = (a,b) => b ? Math.round(a/b*100) + "%" : "–";
+const pct1 = (a,b) => b ? (a/b*100).toFixed(1) + "%" : "–";
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const initials = n => n.trim().split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase();
+const short = n => { const w = String(n).trim().toLowerCase().split(/\s+/); return w.length>1 ? w[0]+" "+w[1][0] : w[0]; };
+const hms = s => { if(s==null||isNaN(s)) return "–"; s=Math.round(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(x).padStart(2,"0")}`; };
+const dur = s => { s=Math.round(s); if(s<60) return s+"s"; if(s<3600) return Math.round(s/60)+"m"; if(s<86400){ const h=Math.floor(s/3600), m=Math.round(s%3600/60); return h+"h"+(m?" "+m+"m":""); } const d=Math.floor(s/86400), h=Math.round(s%86400/3600); return d+"d"+(h?" "+h+"h":""); };
+const median = a => { if(!a.length) return null; const b=a.slice().sort((x,y)=>x-y), m=b.length>>1; return b.length%2 ? b[m] : (b[m-1]+b[m])/2; };
+const mean = a => a.length ? a.reduce((s,x)=>s+x,0)/a.length : null;
+
+/* ---------- roster ---------- */
+const excluded = new Set(); CONFIG.EXCLUDE.forEach(n => { excluded.add(n.trim().toLowerCase()); excluded.add(short(n)); });
+const isExcluded = n => excluded.has(String(n).trim().toLowerCase()) || excluded.has(short(n));
+const FULL = {}, SHORT = {};
+function addRoster(team, names){ names.forEach(n=>{ FULL[n.trim().toLowerCase()] = team; const k=short(n); SHORT[k] = (SHORT[k] && SHORT[k]!==team) ? "__dup" : team; }); }
+Object.entries(CONFIG.TEAMS).forEach(([t,l])=>addRoster(t,l)); addRoster(OC_TEAM, CONFIG.OFFICE_CHAIRS);
+const teamFor = n => { if(!n || isExcluded(n)) return null; const f=FULL[String(n).trim().toLowerCase()]; if(f) return f; const s=SHORT[short(n)]; return s && s!=="__dup" ? s : null; };
+const productOfTeam = t => t===OC_TEAM ? "Office Chairs" : "Mobility";
+const aliasOf = {}; Object.entries(CONFIG.ALIASES).forEach(([k,v]) => aliasOf[k.trim().toLowerCase()] = v);
+
+let CALLS = [], SALES = [], FRT = [], PEND = [], STAGE = [], UPDATED = "", META = {};
+const MONTHS = {};   // "2026-10" → decoded rows for that month (loaded on demand)
+const VIEWS = ["overview","agents","frt"];
+let state = { view: ({"#agents":"agents","#frt":"frt"})[location.hash] || "overview", range:"today", from:"", to:"", product:"All", team:"All", agent:"All", gran:"day", sortKey:"conn", sortDir:-1, fSort:"med", fDir:1, frtMode:"biz" };
+
+/* ---------- dates ---------- */
+const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const pd = s => { const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); };
+const addDays = (s,n) => { const d=pd(s); d.setDate(d.getDate()+n); return iso(d); };
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const dLabel = s => { const d=pd(s); return d.getDate()+" "+MON[d.getMonth()]; };
+const weekStart = s => { const d=pd(s); d.setDate(d.getDate()-((d.getDay()+6)%7)); return iso(d); };
+const wLabel = s => { const a=pd(s), b=new Date(a); b.setDate(b.getDate()+6); return a.getMonth()===b.getMonth() ? `${a.getDate()}–${b.getDate()} ${MON[b.getMonth()]}` : `${a.getDate()} ${MON[a.getMonth()]}–${b.getDate()} ${MON[b.getMonth()]}`; };
+const today = () => iso(new Date());
+function rangeDates(r){
+  const t = today();
+  if(r==="today") return [t,t];
+  if(r==="yesterday") return [addDays(t,-1), addDays(t,-1)];
+  if(r==="7d") return [addDays(t,-6), t];
+  if(r==="month") return [t.slice(0,8)+"01", t];
+  return [CONFIG.DATA_START, t];
+}
+const rangeText = (f,t) => f===t ? dLabel(f) : `${dLabel(f)} – ${dLabel(t)}`;
+
+/* ---------- loading (one month at a time) ---------- */
+const PACK = { calls:[0,1,3,4,5], stage:[0,1,2,3], frt:[0,1,2,7], pend:[0,1,2,6], sales:[0,1,3] };
+function unpack(d){ const o={}; Object.keys(PACK).forEach(k=>{ const cols=PACK[k]; o[k]=(d[k]||[]).map(r=>r.map((v,i)=>cols.includes(i)?d.dict[v]:v)); }); return o; }
+const ymOf = d => d.slice(0,7);
+function monthsBetween(f,t){ const out=[]; let y=+f.slice(0,4), m=+f.slice(5,7); const ty=+t.slice(0,4), tm=+t.slice(5,7); while((y<ty||(y===ty&&m<=tm)) && out.length<48){ out.push(`${y}-${String(m).padStart(2,"0")}`); if(++m>12){m=1;y++;} } return out; }
+function monthsFor(f,t){ const s=CONFIG.DATA_START, td=today(); if(f<s) f=s; if(t>td) t=td; return f>t ? [] : monthsBetween(f,t); }
+const monthName = ym => MON[+ym.slice(5,7)-1]+" "+ym.slice(0,4);
+
+function ingest(){
+  const conn = { "Mobility": new Set(["connected"]), "Office Chairs": new Set(["contacted"]) };
+  CALLS = []; SALES = []; FRT = []; PEND = []; STAGE = [];
+  const all = Object.values(MONTHS);
+  all.forEach(M => M.calls.forEach(r => {
+    const [tab,date,slot,agent,status,dispo,n] = r; const team = teamFor(agent); if(!team) return;
+    const c = (conn[tab]||conn.Mobility).has(String(status).toLowerCase());
+    CALLS.push({ product: productOfTeam(team), team, date, slot, agent, status, dispo, connected: c,
+      dials: n, u: r[7], uc: c ? r[8] : 0, us: r[9], ucs: c ? r[10] : 0 });
+  }));
+  const byShort = {}; CALLS.forEach(c => byShort[short(c.agent)] = c.agent);
+  const match = name => { const a = aliasOf[name.trim().toLowerCase()]; if(a) return byShort[short(a)] || a; return byShort[short(name)] || name.trim(); };
+  all.forEach(M => M.sales.forEach(([tab,date,slot,agent,amount]) => {
+    if(isExcluded(agent)) return; const a = match(agent), team = teamFor(a) || teamFor(agent); if(!team) return;
+    SALES.push({ product: productOfTeam(team), team, date, slot, agent: a, amount });
+  }));
+  all.forEach(M => M.stage.forEach(([tab,date,agent,stage,dials,u,uc]) => { const team = teamFor(agent); if(!team) return;
+    STAGE.push({ product: productOfTeam(team), team, date, agent, stage, dials, u, uc }); }));
+  all.forEach(M => M.frt.forEach(([tab,date,agent,real,hour,fc,biz,stage]) => { const team = teamFor(agent); if(!team) return;
+    FRT.push({ product: productOfTeam(team), team, date, agent, real, biz, sec: real, hour: hour==null?-1:hour, fc: !!fc, stage }); }));
+  all.forEach(M => M.pend.forEach(([tab,date,owner,real,hour,biz,stage]) => { const team = teamFor(owner); if(!team) return;
+    PEND.push({ product: productOfTeam(team), team, date, agent: owner, real, biz, sec: real, hour, stage }); }));
+  applyFrtMode();
+}
+function applyFrtMode(){ const b = state.frtMode==="biz"; FRT.forEach(r=>r.sec = b ? r.biz : r.real); PEND.forEach(r=>r.sec = b ? r.biz : r.real); }
+const LONG = () => state.frtMode==="biz" ? 36000 : 86400;
+const LONG_LABEL = () => state.frtMode==="biz" ? "After 1 working day" : "After 24 hours";
+const frtModeText = () => state.frtMode==="biz" ? "working hours 10 AM–8 PM" : "clock time";
+
+async function fetchMonths(list){
+  if(!list.length) return;
+  if(!CONFIG.DATA_URL){ const d = demoData(); list.forEach(ym => { MONTHS[ym] = unpack(d.months[ym] || {dict:[]}); }); META = d.meta; return; }
+  const res = await Promise.all(list.map(ym => api({token:AUTH.token, action:"data", month:ym})));
+  for(const r of res){
+    if(r.error==="auth"){ const e = new Error("auth"); e.auth = true; throw e; }
+    if(r.error) throw new Error(r.message || r.error);
+  }
+  res.forEach(r => { MONTHS[r.month] = unpack(r.data); });
+  META = res[res.length-1];
+}
+/** make sure the months for a date range are loaded (used by the assistant and reports) */
+async function ensureMonths(f,t){ const miss = monthsFor(f,t).filter(m=>!MONTHS[m]); if(miss.length){ await fetchMonths(miss); ingest(); } }
+
+function demoData(){
+  const months={}; const t=new Date(); t.setHours(0,0,0,0);
+  const mob = Object.values(CONFIG.TEAMS).flat();
+  const oc = ["Vaishali Kale","Khushi Jaiswal","Shreegun Sathawane","Epeksha Bhusari","Tanya Dhanwani","Dhriti Sahu","Kartik Mahale","Shashank Marathe","Sanskar Vishwakarma","Suyesh Trivedi","Palak Tiwari","Shiwani Chouhan","Nikita Humbade","Savio A"];
+  const dispos=["Interested","Call back","Not interested","DNP","Price issue","Already purchased"];
+  const stages=["New Lead","Prospect","Follow-up","Opportunity","Customer","Not Interested","Older lead (not synced)"];
+  let seed=7; const rnd=()=> (seed=(seed*9301+49297)%233280)/233280;
+  const M = ym => months[ym] ||= {calls:[],stage:[],frt:[],pend:[],sales:[]};
+  for(let d=0; d<200; d++){
+    const day=new Date(t); day.setDate(day.getDate()-d); const ds=iso(day); if(ds<CONFIG.DATA_START) break; const m=M(ymOf(ds));
+    const maxSlot = d===0 ? Math.max(1,Math.min(11,new Date().getHours()-9)) : 11;
+    [[mob,"Mobility","Connected"],[oc,"Office Chairs","Contacted"]].forEach(([list,p,ok]) => list.forEach(a => {
+      const skill = 0.6 + rnd()*0.8;
+      for(let s=0;s<=maxSlot;s++){
+        const n = Math.round((s===0?1:6+rnd()*10)*skill), c = Math.round(n*(0.35+rnd()*0.3));
+        if(c){ const u=Math.max(1,Math.round(c*0.85)); m.calls.push([p,ds,s,a,ok,dispos[Math.floor(rnd()*3)],c,u,u,u,u]); }
+        if(n-c){ const u=Math.max(1,Math.round((n-c)*0.75)); m.calls.push([p,ds,s,a,"Not "+ok.toLowerCase(),dispos[3+Math.floor(rnd()*3)],n-c,u,0,u,0]); }
+      }
+      stages.forEach((st,i)=>{ const u=Math.round((6-i*0.7)*skill*(1+rnd())*3); if(u>0){ const uc=Math.round(u*(0.3+rnd()*0.4)); m.stage.push([p,ds,a,st,Math.round(u*1.3),u,uc]); } });
+      if(rnd()<0.35*skill) m.sales.push([p,ds,2+Math.floor(rnd()*9),short(a).replace(/\b\w/g,x=>x.toUpperCase()),Math.round(8000+rnd()*40000)]);
+      const leads = Math.round(2+rnd()*5);
+      for(let k=0;k<leads;k++){ const r=rnd(); const sec = r<.35 ? 60+rnd()*240 : r<.6 ? 300+rnd()*1500 : r<.8 ? 1800+rnd()*5400 : r<.95 ? 7200+rnd()*70000 : 86400+rnd()*90000;
+        const real=Math.round(sec/60)*60; m.frt.push([p,ds,a,real,Math.floor(8+rnd()*14), rnd()<.5?1:0, Math.round(real*(0.35+rnd()*0.4)), stages[Math.floor(rnd()*5)]]); }
+      if(rnd()<0.25) m.pend.push([p,ds,a,(d+0.5)*86400,Math.floor(8+rnd()*14),(d+0.3)*36000,stages[Math.floor(rnd()*3)]]);
+    }));
+  }
+  Object.keys(months).forEach(ym => { const dict=[], at={}, enc=v=>{ if(!(v in at)){ at[v]=dict.length; dict.push(v); } return at[v]; }; const raw=months[ym]; const out={dict};
+    Object.keys(PACK).forEach(k=>{ out[k]=raw[k].map(r=>r.map((v,i)=>PACK[k].includes(i)?enc(String(v)):v)); }); months[ym]=out; });
+  return {months, meta:{updated: iso(new Date())+" "+new Date().toTimeString().slice(0,5), backfill:{done:true,pct:100}, errors:[]}};
+}
+
+const fmtUpdated = u => { const m = String(u||"").match(/(\d{1,2}):(\d{2})/); if(!m) return ""; let h=+m[1]; const ap = h>=12?"PM":"AM"; h = h%12||12; return `${h}:${m[2]} ${ap}`; };
+/* ---------- login ---------- */
+const AUTH = { token:"", name:"", ai:false, exp:0 };
+const store = { get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }, set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }, del(k){ try{ localStorage.removeItem(k); }catch(e){} } };
+async function api(body){
+  const res = await fetch(CONFIG.DATA_URL, { method:"POST", body: JSON.stringify(body) });
+  if(!res.ok) throw new Error("Server returned " + res.status);
+  return res.json();
+}
+function showLogin(msg){
+  AUTH.token=""; store.del("frido_auth");
+  document.body.classList.add("locked"); $("login").hidden=false; $("loginErr").textContent = msg||"";
+  setTimeout(()=>$("lu").focus(),50);
+}
+function hideLogin(){ document.body.classList.remove("locked"); $("login").hidden=true; $("logoutBtn").hidden=false; }
+$("loginForm").addEventListener("submit", async e=>{
+  e.preventDefault(); const btn=$("loginBtn"); btn.disabled=true; btn.textContent="Signing in…"; $("loginErr").textContent="";
+  try{
+    const r = await api({action:"login", u:$("lu").value, p:$("lp").value});
+    if(!r.ok){ $("loginErr").textContent = r.error || "Could not sign in."; }
+    else { Object.assign(AUTH,{token:r.token,name:r.name,ai:!!r.ai,exp:r.exp}); store.set("frido_auth",{token:r.token,name:r.name,ai:!!r.ai,exp:r.exp}); $("lp").value=""; hideLogin(); load("all"); }
+  }catch(err){ $("loginErr").textContent = "Could not reach the server. Check your internet and try again."; }
+  btn.disabled=false; btn.textContent="Sign in";
+});
+$("logoutBtn").addEventListener("click",()=>{ Object.keys(MONTHS).forEach(k=>delete MONTHS[k]); ingest(); $("logoutBtn").hidden=true; showLogin("You have signed out."); });
+
+/* kind: "all" = reload every loaded month · "auto" = today's month only · "range" = only missing months */
+let loading = false;
+async function load(kind="all"){
+  if(CONFIG.DATA_URL && (!AUTH.token || Date.now()>AUTH.exp)){ showLogin(AUTH.token?"Your session expired. Please sign in again.":""); return; }
+  const need = monthsFor(state.from||today(), state.to||today());
+  const recent = [...new Set([ymOf(today()), ymOf(addDays(today(),-1))])];
+  let list = kind==="range" ? need.filter(m=>!MONTHS[m]) : kind==="auto" ? recent.filter(m=>MONTHS[m]||need.includes(m)).concat(need.filter(m=>!MONTHS[m])) : Object.keys(MONTHS).concat(need);
+  list = [...new Set(list)].sort();
+  if(!list.length){ render(); return; }
+  const dot=$("dot"), st=$("statusText"), banner=$("banner");
+  loading = true; dot.className="dot"; st.textContent = list.length>1 ? `Loading ${monthName(list[0])} – ${monthName(list[list.length-1])}…` : "Loading…";
+  document.body.classList.add("is-loading"); $("refreshBtn").classList.add("spin");
+  try{
+    await fetchMonths(list);
+    ingest(); UPDATED = META.updated || "";
+    dot.className = CALLS.length ? (CONFIG.DATA_URL ? "dot" : "dot demo") : "dot err";
+    st.textContent = (CONFIG.DATA_URL ? "Live" : "Demo") + (UPDATED ? ` · Refreshed at ${fmtUpdated(UPDATED)}` : "") + (AUTH.name ? ` · ${AUTH.name}` : "");
+    const msgs = [];
+    const bf = META.backfill || {};
+    if(bf.done===false) msgs.push(`Pulling history from LSQ (${bf.pct||0}% done) — ${bf.text||""}. Older dates will fill in as it runs.${bf.error?" Last error: "+bf.error:""}`);
+    if((META.errors||[]).length) msgs.push("Sync warnings: " + META.errors.join(" · "));
+    banner.style.display = msgs.length ? "block" : "none"; banner.textContent = msgs.join("  |  ");
+  }catch(e){
+    if(e.auth){ showLogin("Your session expired or access was removed. Please sign in again."); }
+    else { dot.className="dot err"; st.textContent="Could not load data"; banner.style.display="block"; banner.textContent = e.message + ". Please click Refresh. If it continues, check the Apps Script deployment."; }
+  }
+  loading = false; document.body.classList.remove("is-loading"); $("refreshBtn").classList.remove("spin");
+  buildSelects(); render();
+}
+
+/* ---------- filters ---------- */
+function teamsForProduct(){ const all = [...Object.keys(CONFIG.TEAMS).sort(), OC_TEAM]; return state.product==="All" ? all : all.filter(t=>productOfTeam(t)===state.product); }
+function buildSelects(){
+  $("product").innerHTML = ["All","Mobility","Office Chairs"].map(p=>`<option ${p===state.product?"selected":""}>${p}</option>`).join("");
+  const teams = teamsForProduct(); if(state.team!=="All" && !teams.includes(state.team)) state.team="All";
+  const opts = `<option value="All">All teams</option>` + teams.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join("");
+  $("team").innerHTML = opts; $("team").value = state.team;
+  document.querySelectorAll(".teamsel").forEach(s=>{ s.innerHTML = opts; s.value = state.team; });
+}
+function applyRange(r){
+  if(r!=="custom"){ const [f,t]=rangeDates(r); state.from=f; state.to=t; }
+  state.range=r; $("from").value=state.from; $("to").value=state.to;
+  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.range===r));
+  if(!loading && (CONFIG.DATA_URL ? AUTH.token : true) && monthsFor(state.from,state.to).some(m=>!MONTHS[m])) load("range"); else render();
+}
+document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>applyRange(b.dataset.range)));
+$("from").addEventListener("change",e=>{state.from=e.target.value; applyRange("custom");});
+$("to").addEventListener("change",e=>{state.to=e.target.value; applyRange("custom");});
+$("product").addEventListener("change",e=>{state.product=e.target.value; state.agent="All"; buildSelects(); render();});
+const setTeam = t => { state.team=t; state.agent="All"; buildSelects(); render(); };
+$("team").addEventListener("change",e=>setTeam(e.target.value));
+document.querySelectorAll(".teamsel").forEach(s=>s.addEventListener("change",e=>setTeam(e.target.value)));
+document.querySelectorAll(".agentsel").forEach(s=>s.addEventListener("change",e=>{ state.agent=e.target.value; render(); }));
+document.querySelectorAll(".pills button[data-gran]").forEach(b=>b.addEventListener("click",()=>{ state.gran=b.dataset.gran; document.querySelectorAll(".pills button[data-gran]").forEach(x=>x.setAttribute("aria-pressed", x.dataset.gran===state.gran)); render(); }));
+document.querySelectorAll(".pills button[data-mode]").forEach(b=>b.addEventListener("click",()=>{ state.frtMode=b.dataset.mode; document.querySelectorAll(".pills button[data-mode]").forEach(x=>x.setAttribute("aria-pressed", x.dataset.mode===state.frtMode)); applyFrtMode(); render(); }));
+$("refreshBtn").addEventListener("click",()=>load("all"));
+document.querySelectorAll(".views button").forEach(b=>b.addEventListener("click",()=>setView(b.dataset.view)));
+function setView(v){
+  state.view=v;
+  document.querySelectorAll(".views button").forEach(b=>b.setAttribute("aria-selected", b.dataset.view===v));
+  VIEWS.forEach(k=>$("view-"+k).hidden = k!==v);
+  history.replaceState(null,"", v==="overview" ? location.pathname+location.search : "#"+v);
+  if(v!=="overview" && (state.range==="today"||state.range==="yesterday")) applyRange("month"); else render();
+}
+addEventListener("scroll",()=>{ const t=$("topbar"), y=scrollY; if(y>120) t.classList.add("scrolled"); else if(y<20) t.classList.remove("scrolled"); }, {passive:true});
+
+const scopeOK = r => (state.product==="All"||r.product===state.product) && (state.team==="All"||r.team===state.team);
+const inScope = r => r.date>=state.from && r.date<=state.to && scopeOK(r);
+
+/* ---------- shared aggregation ---------- */
+function agentStats(calls, sales, frt){
+  const A = {};
+  const g = (agent,team) => A[agent] ||= {agent, team, product: productOfTeam(team), dials:0, uniq:0, conn:0, dconn:0, days:new Set(), slots:new Array(12).fill(0), orders:0, rev:0, frt:[], best:{}};
+  calls.forEach(r=>{ const a=g(r.agent,r.team); a.dials+=r.dials; a.uniq+=r.u; a.conn+=r.uc; if(r.connected) a.dconn+=r.dials; a.days.add(r.date); if(r.slot>=0&&r.slot<12) a.slots[r.slot]+=r.ucs; });
+  sales.forEach(r=>{ const a=g(r.agent,r.team); a.orders++; a.rev+=r.amount; a.best[r.date]=(a.best[r.date]||0)+r.amount; });
+  frt.forEach(r=>{ g(r.agent,r.team).frt.push(r.sec); });
+  const list = Object.values(A);
+  list.forEach(a=>{
+    a.target = a.days.size*CONFIG.DAILY_TARGET; a.ach = a.target ? a.conn/a.target : 0;
+    a.rate = a.uniq ? a.conn/a.uniq : 0; a.conv = a.conn ? a.orders/a.conn : 0;
+    const mx = Math.max(...a.slots); a.peak = mx>0 ? a.slots.indexOf(mx) : -1;
+    a.frtMed = median(a.frt); a.frtAvg = mean(a.frt); a.repeat = a.dials-a.uniq;
+  });
+  return list;
+}
+const sum = (l,k) => l.reduce((s,a)=>s+a[k],0);
+
+/* ---------- count-up numbers ---------- */
+const lastVal = {};
+function setNum(id, v, f){
+  const el = $(id), from = lastVal[id] ?? 0; lastVal[id] = v;
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches || from===v){ el.textContent = f(v); return; }
+  const t0 = performance.now(), d = 700;
+  const step = t => { const k = Math.min(1,(t-t0)/d), e = 1-Math.pow(1-k,3); el.textContent = f(from+(v-from)*e); if(k<1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+
+/* ---------- render ---------- */
+function render(){
+  if(state.view==="overview") renderOverview();
+  else if(state.view==="agents") renderAgents();
+  else renderFrt();
+  const tl = state.team==="All" ? "All teams" : state.team;
+  $("foot").textContent = `Showing ${rangeText(state.from,state.to)} · ${state.product==="All"?"All products":state.product} · ${tl} · target ${CONFIG.DAILY_TARGET} unique connected calls per agent per day`;
+}
+
+function renderOverview(){
+  const calls = CALLS.filter(inScope), sales = SALES.filter(inScope), frt = FRT.filter(inScope);
+  const list = agentStats(calls, sales, frt);
+  const callers = list.filter(a=>a.dials>0);
+  const U=sum(list,"uniq"), C=sum(list,"conn"), D=sum(list,"dials"), T=sum(list,"target"), R=sum(list,"rev"), O=sum(list,"orders");
+  const agentDays = sum(callers.map(a=>({n:a.days.size})),"n");
+  setNum("kConnected", C, v=>fmt(Math.round(v)));
+  $("kConnectedNote").textContent = agentDays ? `${fmt(Math.round(C/agentDays))} per agent per day` : "";
+  setNum("kCalls", U, v=>fmt(Math.round(v)));
+  $("kCallsNote").textContent = D ? `${fmt(D)} dials · ${fmt(D-U)} repeat` : "";
+  $("kRate").textContent = pct(C,U);
+  $("kTarget").textContent = pct(C,T);
+  $("kTargetNote").textContent = T ? `${fmt(C)} of ${fmt(T)}` : "";
+  setNum("kRev", R, inr);
+  $("kRevNote").textContent = C ? `${inr(R/C)} per connected call` : "";
+  setNum("kOrders", O, v=>fmt(Math.round(v)));
+  $("kAovNote").textContent = O ? `Avg order ${inr(R/O)}` : "";
+  const secs = frt.map(r=>r.sec);
+  $("kFrt").textContent = secs.length ? hms(median(secs)) : "–";
+  $("kFrtNote").textContent = secs.length ? `${fmt(secs.length)} leads · ${state.frtMode==="biz"?"working hours":"clock time"}` : "no FRT data";
+  setNum("kAgents", callers.length, v=>fmt(Math.round(v)));
+  const hit = callers.filter(a=>a.ach>=1).length;
+  $("kAgentsNote").textContent = callers.length ? `${hit} hit target` : "";
+  drawHours(calls); drawTeams(list); drawDispo(calls); drawBoard(list);
+}
+
+function drawHours(rows){
+  const c = SLOTS.map(()=>({conn:0, not:0}));
+  rows.forEach(r=>{ if(r.slot>=0&&r.slot<12){ c[r.slot].conn+=r.ucs; c[r.slot].not+= r.connected ? 0 : r.us; } });
+  const P = c.map((d,i)=>({label:SLOTS[i], conn:d.conn, not:d.not}));
+  barChart("hourChart", P, [{key:"conn",color:"var(--series-connected)",name:"Connected (unique)"},{key:"not",color:"var(--series-notconn)",name:"Not connected (unique)"}], p=>({conn:p.conn,not:p.not}), {axis:fmt, label:fmt,
+    tip: p=>`<b>${p.label}</b><div class="row"><i class="sw" style="background:var(--series-connected)"></i>Connected ${fmt(p.conn)}</div><div class="row"><i class="sw" style="background:var(--series-notconn)"></i>Not connected ${fmt(p.not)}</div><div class="row">Total ${fmt(p.conn+p.not)} · ${pct(p.conn,p.conn+p.not)} connect</div>`, minW:560});
+}
+
+function drawTeams(list){
+  const t = {};
+  list.forEach(a=>{ const x = t[a.team] ||= {team:a.team, agents:0, uniq:0, conn:0, target:0, rev:0, frt:[]};
+    if(a.dials) x.agents++; x.uniq+=a.uniq; x.conn+=a.conn; x.target+=a.target; x.rev+=a.rev; x.frt.push(...a.frt); });
+  const rows = Object.values(t).sort((a,b)=>b.conn-a.conn);
+  if(!rows.length){ $("teamTable").innerHTML = `<tr><td class="empty">No data in this range</td></tr>`; return; }
+  $("teamTable").innerHTML = `<thead><tr><th>Team</th><th class="num">Dialed</th><th class="num">Connected</th><th class="num">Rate</th><th class="num">vs target</th><th class="num">Revenue</th><th class="num">Median FRT</th></tr></thead><tbody>` +
+    rows.map(r=>`<tr><td>${esc(r.team)} <span class="team-tag">· ${r.agents}</span></td><td class="num">${fmt(r.uniq)}</td><td class="num">${fmt(r.conn)}</td><td class="num">${pct(r.conn,r.uniq)}</td><td class="num">${progress(r.target? r.conn/r.target:0)}</td><td class="num">${inr(r.rev)}</td><td class="num mono">${hms(median(r.frt))}</td></tr>`).join("") + `</tbody>`;
+}
+
+function drawDispo(rows){
+  const m = {}; rows.forEach(r=>{ if(r.dispo) m[r.dispo]=(m[r.dispo]||0)+r.dials; });
+  const top = Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if(!top.length){ $("dispo").innerHTML = `<div class="empty">No disposition data in this range</div>`; return; }
+  const max = top[0][1], total = Object.values(m).reduce((s,v)=>s+v,0);
+  $("dispo").innerHTML = top.map(([k,v])=>`<div class="hbar-row" title="${esc(k)}: ${fmt(v)} (${pct(v,total)})"><span class="name">${esc(k)}</span><span class="track"><i style="width:${Math.max(2,v/max*100)}%"></i></span><span class="v">${fmt(v)}</span></div>`).join("");
+}
+
+const COLS = [
+  {k:"rank",l:"#"},{k:"agent",l:"Agent",s:1},{k:"dials",l:"Dials",s:1,n:1},{k:"uniq",l:"Dialed (unique)",s:1,n:1},{k:"conn",l:"Connected",s:1,n:1},
+  {k:"rate",l:"Rate",s:1,n:1},{k:"peak",l:"Peak hour",n:1},{k:"ach",l:"Target",s:1,n:1},
+  {k:"orders",l:"Orders",s:1,n:1},{k:"rev",l:"Revenue",s:1,n:1},{k:"conv",l:"Conv.",s:1,n:1},{k:"frtMed",l:"Median FRT",s:1,n:1}
+];
+function sortList(list,k,dir){ list.sort((a,b)=>{ const x=a[k], y=b[k]; if(x==null&&y==null) return 0; if(x==null) return 1; if(y==null) return -1; return (typeof x==="string" ? x.localeCompare(y) : x-y)*dir || b.conn-a.conn; }); }
+function drawBoard(list){
+  const k=state.sortKey, dir=state.sortDir; sortList(list,k,dir);
+  const head = `<thead><tr>${COLS.map(c=>`<th class="${c.n?"num ":""}${c.s?"sortable":""}" ${c.s?`tabindex="0" data-k="${c.k}" aria-sort="${k===c.k?(dir<0?"descending":"ascending"):"none"}"`:""}>${c.l}</th>`).join("")}</tr></thead>`;
+  if(!list.length){ $("board").innerHTML = head + `<tbody><tr><td colspan="${COLS.length}" class="empty">No data in this range</td></tr></tbody>`; return; }
+  const body = list.map((a,i)=>`<tr>
+    <td class="rank">${i<3 && k!=="agent" ? `<span class="medal m${i+1}">${i+1}</span>` : i+1}</td>
+    <td><span class="who"><span class="av">${esc(initials(a.agent))}</span><span>${esc(a.agent)} <span class="team-tag">· ${esc(a.team)}</span>${a.uniq>=20 && a.rate<0.25?`<span class="flag" title="Connect rate below 25%">low connect</span>`:""}</span></span></td>
+    <td class="num">${fmt(a.dials)}</td><td class="num">${fmt(a.uniq)}</td><td class="num">${fmt(a.conn)}</td><td class="num">${pct(a.conn,a.uniq)}</td>
+    <td class="num">${a.peak>=0?SLOTS[a.peak]:"–"}</td><td class="num">${a.dials?progress(a.ach):"–"}</td>
+    <td class="num">${fmt(a.orders)}</td><td class="num">${inr(a.rev)}</td><td class="num">${a.conn?pct1(a.orders,a.conn):"–"}</td><td class="num mono">${hms(a.frtMed)}</td></tr>`).join("");
+  $("board").innerHTML = head + `<tbody>${body}</tbody>`;
+  bindSort("board", k=>{ if(state.sortKey===k) state.sortDir*=-1; else { state.sortKey=k; state.sortDir = (k==="agent"||k==="frtMed")?1:-1; } render(); });
+}
+function bindSort(id, fn){ $(id).querySelectorAll("th.sortable").forEach(th=>{ const go=()=>fn(th.dataset.k); th.addEventListener("click",go); th.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){e.preventDefault();go();} }); }); }
+function progress(v){ const p=Math.round(v*100); return `<span class="prog"><span class="bar"><i class="${p>=100?"done":""}" style="width:${Math.min(100,p)}%"></i></span><span>${p>=100?"✓ ":""}${p}%</span></span>`; }
+
+/* ---------- periods ---------- */
+function periodsInRange(){
+  const out=[], seen=new Set(); let d=state.from;
+  while(d<=state.to){ const k = state.gran==="week" ? weekStart(d) : d; if(!seen.has(k)){ seen.add(k); out.push(k); } d=addDays(d,1); if(out.length>400) break; }
+  return out;
+}
+const keyOf = d => state.gran==="week" ? weekStart(d) : d;
+const pLabel = k => state.gran==="week" ? wLabel(k) : dLabel(k);
+function fillAgentSelect(id){
+  const pool = CALLS.concat(SALES).filter(scopeOK);
+  const names = [...new Set(pool.map(r=>r.agent))].sort((a,b)=>a.localeCompare(b));
+  if(state.agent!=="All" && !names.includes(state.agent)) state.agent="All";
+  $(id).innerHTML = `<option value="All">All agents (${names.length})</option>` + names.map(n=>`<option value="${esc(n)}">${esc(n)} · ${esc(teamFor(n))}</option>`).join("");
+  $(id).value = state.agent;
+}
+
+/* =================== AGENT ANALYSIS =================== */
+function renderAgents(){
+  fillAgentSelect("agentSel");
+  const pick = r => inScope(r) && (state.agent==="All" || r.agent===state.agent);
+  const calls = CALLS.filter(pick), sales = SALES.filter(pick), frt = FRT.filter(pick);
+  const P = periodsInRange().map(k=>({k, label:pLabel(k), dials:0, uniq:0, conn:0, orders:0, rev:0, ad:new Set(), frt:[]}));
+  const idx = {}; P.forEach((p,i)=>idx[p.k]=i);
+  calls.forEach(r=>{ const p=P[idx[keyOf(r.date)]]; if(!p) return; p.dials+=r.dials; p.uniq+=r.u; p.conn+=r.uc; p.ad.add(r.date+"|"+r.agent); });
+  sales.forEach(r=>{ const p=P[idx[keyOf(r.date)]]; if(!p) return; p.orders++; p.rev+=r.amount; });
+  frt.forEach(r=>{ const p=P[idx[keyOf(r.date)]]; if(p) p.frt.push(r.sec); });
+  const T = P.reduce((t,p)=>({dials:t.dials+p.dials, uniq:t.uniq+p.uniq, conn:t.conn+p.conn, orders:t.orders+p.orders, rev:t.rev+p.rev}), {dials:0,uniq:0,conn:0,orders:0,rev:0});
+  const agentDays = new Set(calls.map(r=>r.date+"|"+r.agent)).size, workDays = new Set(calls.map(r=>r.date)).size;
+  $("aConn").textContent = fmt(T.conn);
+  $("aConnNote").textContent = agentDays ? `${fmt(Math.round(T.conn/agentDays))} per agent per day · target ${CONFIG.DAILY_TARGET}` : "";
+  $("aCalls").textContent = fmt(T.uniq);
+  $("aCallsNote").textContent = T.dials ? `${fmt(T.dials)} dials · ${workDays} working day${workDays>1?"s":""}` : "";
+  $("aRate").textContent = pct(T.conn,T.uniq);
+  $("aRateNote").textContent = T.conn ? `conversion ${pct1(T.orders,T.conn)}` : "";
+  $("aRev").textContent = inr(T.rev);
+  $("aRevNote").textContent = T.conn ? `${inr(T.rev/T.conn)} per connected call` : "";
+  $("aOrders").textContent = fmt(T.orders);
+  $("aAov").textContent = T.orders ? `Avg order ${inr(T.rev/T.orders)}` : "";
+  const fs = frt.map(r=>r.sec);
+  $("aFrt").textContent = fs.length ? hms(median(fs)) : "–";
+  $("aFrtNote").textContent = fs.length ? `${fmt(fs.length)} leads · avg ${hms(mean(fs))}` : "no FRT data";
+  const who = state.agent!=="All" ? state.agent : state.team!=="All" ? state.team : state.product!=="All" ? state.product : "All agents";
+  const per = state.gran==="week" ? "Week-wise" : "Day-wise";
+  $("aCallsTitle").textContent = `${per} calls — ${who}`;
+  $("aRevTitle").textContent = `${per} revenue — ${who}`;
+  barChart("aCallsChart", P, [{key:"conn",color:"var(--series-connected)",name:"Connected (unique)"},{key:"not",color:"var(--series-notconn)",name:"Not connected (unique)"}], p=>({conn:p.conn, not:Math.max(0,p.uniq-p.conn)}), {axis:fmt,label:fmt,
+    tip:p=>`<b>${p.label}</b><div class="row"><i class="sw" style="background:var(--series-connected)"></i>Connected ${fmt(p.conn)}</div><div class="row"><i class="sw" style="background:var(--series-notconn)"></i>Not connected ${fmt(p.uniq-p.conn)}</div><div class="row">Unique ${fmt(p.uniq)} · ${fmt(p.dials)} dials · ${pct(p.conn,p.uniq)} connect</div>`});
+  barChart("aRevChart", P, [{key:"rev",color:"#141414",name:"Revenue (₹)"}], p=>({rev:p.rev}), {axis:inrShort,label:inrShort,
+    tip:p=>`<b>${p.label}</b><div class="row">Revenue ${inr(p.rev)}</div><div class="row">Orders ${fmt(p.orders)}${p.orders?` · avg ${inr(p.rev/p.orders)}`:""}</div>`});
+  const arrow = (cur,prev) => prev ? (cur>prev ? `<span class="delta-up">▲</span>` : cur<prev ? `<span class="delta-dn">▼</span>` : "") : "";
+  $("aPeriods").innerHTML = `<thead><tr><th>${state.gran==="week"?"Week":"Date"}</th><th class="num">Dials</th><th class="num">Dialed (unique)</th><th class="num">Connected</th><th class="num">Rate</th><th class="num">vs target</th><th class="num">Orders</th><th class="num">Revenue</th><th class="num">Conv.</th><th class="num">Median FRT</th></tr></thead><tbody>` +
+    P.slice().reverse().map((p,i,arr)=>{ const prev=arr[i+1], tgt=p.ad.size*CONFIG.DAILY_TARGET;
+      return `<tr><td>${p.label}</td><td class="num">${fmt(p.dials)}</td><td class="num">${fmt(p.uniq)} ${arrow(p.uniq,prev&&prev.uniq)}</td><td class="num">${fmt(p.conn)} ${arrow(p.conn,prev&&prev.conn)}</td><td class="num">${pct(p.conn,p.uniq)}</td><td class="num">${tgt?progress(p.conn/tgt):"–"}</td><td class="num">${fmt(p.orders)}</td><td class="num">${inr(p.rev)} ${arrow(p.rev,prev&&prev.rev)}</td><td class="num">${p.conn?pct1(p.orders,p.conn):"–"}</td><td class="num mono">${hms(median(p.frt))}</td></tr>`; }).join("") + `</tbody>`;
+  $("aCompareWrap").hidden = state.agent!=="All";
+  if(state.agent==="All"){
+    const list = agentStats(CALLS.filter(inScope), SALES.filter(inScope), FRT.filter(inScope)).sort((a,b)=>b.rev-a.rev || b.conn-a.conn);
+    $("aCompare").innerHTML = `<thead><tr><th>Agent</th><th class="num">Days</th><th class="num">Dialed / day</th><th class="num">Connected / day</th><th class="num">Rate</th><th class="num">vs target</th><th class="num">Orders</th><th class="num">Revenue</th><th class="num">Revenue / day</th><th class="num">Conv.</th><th class="num">Median FRT</th><th class="num">Best day</th></tr></thead><tbody>` +
+      list.map(a=>{ const d=a.days.size||1, bd=Object.entries(a.best).sort((x,y)=>y[1]-x[1])[0];
+        return `<tr data-agent="${esc(a.agent)}"><td><span class="who"><span class="av">${esc(initials(a.agent))}</span><span>${esc(a.agent)} <span class="team-tag">· ${esc(a.team)}</span></span></span></td><td class="num">${a.days.size}</td><td class="num">${fmt(Math.round(a.uniq/d))}</td><td class="num">${fmt(Math.round(a.conn/d))}</td><td class="num">${pct(a.conn,a.uniq)}</td><td class="num">${a.days.size?progress(a.ach):"–"}</td><td class="num">${fmt(a.orders)}</td><td class="num">${inr(a.rev)}</td><td class="num">${inr(a.rev/d)}</td><td class="num">${a.conn?pct1(a.orders,a.conn):"–"}</td><td class="num mono">${hms(a.frtMed)}</td><td class="num">${bd?`${dLabel(bd[0])} · ${inrShort(bd[1])}`:"–"}</td></tr>`; }).join("") + `</tbody>`;
+    $("aCompare").querySelectorAll("tbody tr").forEach(tr=>tr.addEventListener("click",()=>{ state.agent=tr.dataset.agent; render(); scrollTo({top:0,behavior:"smooth"}); }));
+  }
+}
+
+/* =================== FRT ANALYSIS =================== */
+const BUCKETS_CLOCK = [[300,"Within 5 min"],[900,"5 – 15 min"],[1800,"15 – 30 min"],[3600,"30 – 60 min"],[14400,"1 – 4 hours"],[86400,"4 – 24 hours"],[Infinity,"After 24 hours"]];
+const BUCKETS_BIZ = [[300,"Within 5 min"],[900,"5 – 15 min"],[1800,"15 – 30 min"],[3600,"30 – 60 min"],[14400,"1 – 4 hours"],[36000,"4 – 10 hours"],[Infinity,"After 1 working day"]];
+const BUCKET_COLORS = ["#0a7a0a","#3d9a2f","#8db82e","#e9a100","#e57a1f","#c94b1f","#9b1c1c"];
+function renderFrt(){
+  fillAgentSelect("fAgentSel");
+  const pick = r => inScope(r) && (state.agent==="All" || r.agent===state.agent);
+  const rows = FRT.filter(pick), secs = rows.map(r=>r.sec), pend = PEND.filter(pick), long = LONG();
+  const n = secs.length, w5 = secs.filter(s=>s<=300).length, w60 = secs.filter(s=>s<=3600).length, oL = secs.filter(s=>s>long).length;
+  $("fModeNote").textContent = state.frtMode==="biz" ? "Counting only 10 AM – 8 PM, every day. A lead created at 8:45 PM and called at 10:15 AM next day = 15 min." : "Counting every minute (24 hours a day).";
+  $("fMed").textContent = n ? hms(median(secs)) : "–";
+  $("fMedNote").textContent = n ? `half the leads were called within this time` : (FRT.length ? "no leads in this range" : "FRT data not available yet");
+  $("fAvg").textContent = n ? hms(mean(secs)) : "–";
+  $("fAvgNote").textContent = n ? frtModeText() : "";
+  $("fLeads").textContent = fmt(n);
+  $("fLeadsNote").textContent = n+pend.length ? `of ${fmt(n+pend.length)} leads created` : "";
+  $("f5").textContent = pct(w5,n); $("f5Note").textContent = n ? `${fmt(w5)} leads` : "";
+  $("f60").textContent = pct(w60,n); $("f60Note").textContent = n ? `${fmt(w60)} leads` : "";
+  $("f24Lbl").textContent = LONG_LABEL();
+  $("f24").textContent = fmt(oL); $("f24Note").textContent = n ? `${pct(oL,n)} of leads` : "";
+  $("fPend").textContent = fmt(pend.length);
+  $("fPendNote").textContent = pend.length ? `waiting longest ${hms(Math.max(...pend.map(r=>r.sec)))}` : "every lead got a call";
+  $("fFc").textContent = n ? pct(rows.filter(r=>r.fc).length,n) : "–";
+  $("fFcNote").textContent = n ? `${fmt(rows.filter(r=>r.fc).length)} connected on the first call` : "";
+  const who = state.agent!=="All" ? state.agent : state.team!=="All" ? state.team : state.product!=="All" ? state.product : "All agents";
+  $("fTrendTitle").textContent = `${state.gran==="week"?"Week-wise":"Day-wise"} FRT — ${who}`;
+
+  // trend
+  const P = periodsInRange().map(k=>({k,label:pLabel(k),s:[],pend:0})); const idx={}; P.forEach((p,i)=>idx[p.k]=i);
+  rows.forEach(r=>{ const p=P[idx[keyOf(r.date)]]; if(p) p.s.push(r.sec); });
+  pend.forEach(r=>{ const p=P[idx[keyOf(r.date)]]; if(p) p.pend++; });
+  P.forEach(p=>{ p.med = median(p.s); p.avg = mean(p.s); });
+  barChart("fTrendChart", P, [{key:"med",color:"#141414",name:"Median FRT"}], p=>({med:p.med||0}), {axis:dur, label:dur, step:timeStep, csvFmt:hms,
+    tip:p=>`<b>${p.label}</b><div class="row">Median ${hms(p.med)}</div><div class="row">Average ${hms(p.avg)}</div><div class="row">${fmt(p.s.length)} leads · ${pct(p.s.filter(s=>s<=300).length,p.s.length)} within 5 min${p.pend?` · ${fmt(p.pend)} not called`:""}</div>`});
+
+  // speed distribution
+  const B = state.frtMode==="biz" ? BUCKETS_BIZ : BUCKETS_CLOCK;
+  const cnt = B.map(()=>0); secs.forEach(s=>{ cnt[B.findIndex(b=>s<=b[0])]++; });
+  const mx = Math.max(1,...cnt);
+  $("fSpeed").innerHTML = n ? B.map((b,i)=>`<div class="speed-row" title="${b[1]}: ${fmt(cnt[i])} leads (${pct1(cnt[i],n)})"><span>${b[1]}</span><span class="track"><i style="width:${cnt[i]?Math.max(2,cnt[i]/mx*100):0}%;background:${BUCKET_COLORS[i]};animation-delay:${i*60}ms"></i></span><span class="v">${fmt(cnt[i])}</span><span class="p">${pct(cnt[i],n)}</span></div>`).join("") : `<div class="empty">No FRT data in this range</div>`;
+
+  // by created hour
+  const H = []; for(let h=0;h<24;h++) H.push({h,label:h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p",s:[]});
+  rows.forEach(r=>{ if(r.hour>=0&&r.hour<24) H[r.hour].s.push(r.sec); });
+  const HP = H.filter(x=>x.s.length); HP.forEach(x=>{ x.med=median(x.s); x.avg=mean(x.s); x.full="Leads created "+x.label.replace("a"," AM").replace("p"," PM"); });
+  barChart("fHourChart", HP, [{key:"med",color:"#e9a100",name:"Median FRT"}], p=>({med:p.med}), {axis:dur, label:dur, step:timeStep, minW:420, csvFmt:hms,
+    tip:p=>`<b>${p.full}</b><div class="row">Median ${hms(p.med)}</div><div class="row">Average ${hms(p.avg)} · ${fmt(p.s.length)} leads</div>`});
+
+  // period table
+  $("fPeriods").innerHTML = `<thead><tr><th>${state.gran==="week"?"Week":"Date"} (lead created)</th><th class="num">Leads called</th><th class="num">Median FRT</th><th class="num">Average FRT</th><th class="num">Fastest</th><th class="num">Slowest</th><th class="num">≤ 5 min</th><th class="num">≤ 1 hour</th><th class="num">${LONG_LABEL().replace("After","&gt;")}</th><th class="num">Not called yet</th></tr></thead><tbody>` +
+    (P.some(p=>p.s.length||p.pend) ? P.slice().reverse().filter(p=>p.s.length||p.pend).map(p=>`<tr><td>${p.label}</td><td class="num">${fmt(p.s.length)}</td><td class="num mono"><b>${hms(p.med)}</b></td><td class="num mono">${hms(p.avg)}</td><td class="num mono">${p.s.length?hms(Math.min(...p.s)):"–"}</td><td class="num mono">${p.s.length?hms(Math.max(...p.s)):"–"}</td><td class="num">${speedCell(p.s.filter(s=>s<=300).length,p.s.length)}</td><td class="num">${pct(p.s.filter(s=>s<=3600).length,p.s.length)}</td><td class="num">${fmt(p.s.filter(s=>s>long).length)}</td><td class="num">${p.pend?`<span class="slow">${fmt(p.pend)}</span>`:"0"}</td></tr>`).join("") : `<tr><td colspan="10" class="empty">No FRT data in this range</td></tr>`) + `</tbody>`;
+
+  // agent table
+  $("fAgentWrap").hidden = state.agent!=="All";
+  if(state.agent==="All"){
+    const A={}; const g = r => A[r.agent] ||= {agent:r.agent, team:r.team, s:[], fc:0, pend:0};
+    FRT.filter(inScope).forEach(r=>{ const a=g(r); a.s.push(r.sec); if(r.fc) a.fc++; });
+    PEND.filter(inScope).forEach(r=>{ g(r).pend++; });
+    const list = Object.values(A).map(a=>{ const n=a.s.length; return {...a, leads:n, med:median(a.s), avg:mean(a.s), w5:n?a.s.filter(s=>s<=300).length/n:0, w60:n?a.s.filter(s=>s<=3600).length/n:0, oL:a.s.filter(s=>s>long).length, min:n?Math.min(...a.s):null, max:n?Math.max(...a.s):null}; });
+    const k=state.fSort, dir=state.fDir; list.sort((a,b)=>{ const x=a[k], y=b[k]; if(x==null&&y==null) return 0; if(x==null) return 1; if(y==null) return -1; return (typeof x==="string"?x.localeCompare(y):x-y)*dir; });
+    const cols=[["agent","Agent"],["leads","Leads called first"],["med","Median FRT"],["avg","Average FRT"],["w5","≤ 5 min"],["w60","≤ 1 hour"],["oL",LONG_LABEL().replace("After","> ")],["min","Fastest"],["max","Slowest"],["pend","Own leads not called"]];
+    $("fAgents").innerHTML = `<thead><tr>${cols.map(([c,l],i)=>`<th class="sortable ${i?"num":""}" tabindex="0" data-k="${c}" aria-sort="${k===c?(dir<0?"descending":"ascending"):"none"}">${esc(l)}</th>`).join("")}</tr></thead><tbody>` +
+      (list.length ? list.map(a=>`<tr data-agent="${esc(a.agent)}"><td><span class="who"><span class="av">${esc(initials(a.agent))}</span><span>${esc(a.agent)} <span class="team-tag">· ${esc(a.team)}</span></span></span></td><td class="num">${fmt(a.leads)}</td><td class="num mono"><b>${hms(a.med)}</b></td><td class="num mono">${hms(a.avg)}</td><td class="num">${speedCell(Math.round(a.w5*a.leads),a.leads)}</td><td class="num">${a.leads?pct(a.w60*a.leads,a.leads):"–"}</td><td class="num">${fmt(a.oL)}</td><td class="num mono">${hms(a.min)}</td><td class="num mono">${hms(a.max)}</td><td class="num">${a.pend?`<span class="slow">${fmt(a.pend)}</span>`:"0"}</td></tr>`).join("") : `<tr><td colspan="10" class="empty">No FRT data in this range</td></tr>`) + `</tbody>`;
+    bindSort("fAgents", c=>{ if(state.fSort===c) state.fDir*=-1; else { state.fSort=c; state.fDir = (c==="agent"||c==="med"||c==="avg"||c==="min"||c==="max"||c==="oL")?1:-1; } render(); });
+    $("fAgents").querySelectorAll("tbody tr[data-agent]").forEach(tr=>tr.addEventListener("click",()=>{ state.agent=tr.dataset.agent; render(); scrollTo({top:0,behavior:"smooth"}); }));
+  }
+}
+
+/* =================== LEAD STAGES =================== */
+function renderStage(){
+  fillAgentSelect("sAgentSel");
+  const pick = r => inScope(r) && (state.agent==="All" || r.agent===state.agent);
+  const rows = STAGE.filter(pick), pend = PEND.filter(pick);
+  const S = {}; const g = st => S[st] ||= {stage:st, dials:0, u:0, uc:0, agents:new Set(), pend:0};
+  rows.forEach(r=>{ const s=g(r.stage); s.dials+=r.dials; s.u+=r.u; s.uc+=r.uc; s.agents.add(r.agent); });
+  pend.forEach(r=>{ g(r.stage).pend++; });
+  const list = Object.values(S).sort((a,b)=>b.u-a.u || b.pend-a.pend);
+  const U=sum(list,"u"), C=sum(list,"uc"), D=sum(list,"dials"), PN=sum(list,"pend");
+  $("sU").textContent = fmt(U); $("sUNote").textContent = D ? `${fmt(D)} dials incl. repeats` : "";
+  $("sC").textContent = fmt(C); $("sCNote").textContent = U ? `${pct(C,U)} connect rate` : "";
+  const top = list.filter(s=>s.u)[0];
+  $("sTop").textContent = top ? top.stage : "–"; $("sTopNote").textContent = top ? `${pct(top.u,U)} of leads called` : "";
+  const best = list.filter(s=>s.u>=20).sort((a,b)=>b.uc/b.u-a.uc/a.u)[0];
+  $("sBest").textContent = best ? best.stage : "–"; $("sBestNote").textContent = best ? `${pct(best.uc,best.u)} connect rate` : "stages with 20+ leads";
+  const who = state.agent!=="All" ? state.agent : state.team!=="All" ? state.team : state.product!=="All" ? state.product : "All agents";
+  $("sChartTitle").textContent = `Calls by lead stage — ${who}`;
+  const cut = t => t.length>16 ? t.slice(0,15)+"…" : t;
+  barChart("sChart", list.filter(s=>s.u).map(s=>({label:cut(s.stage), full:s.stage, conn:s.uc, not:s.u-s.uc, dials:s.dials})), [{key:"conn",color:"var(--series-connected)",name:"Connected"},{key:"not",color:"var(--series-notconn)",name:"Not connected"}], p=>({conn:p.conn,not:p.not}), {axis:fmt,label:fmt,minW:560,
+    tip:p=>`<b>${esc(p.full)}</b><div class="row"><i class="sw" style="background:var(--series-connected)"></i>Connected ${fmt(p.conn)}</div><div class="row"><i class="sw" style="background:var(--series-notconn)"></i>Not connected ${fmt(p.not)}</div><div class="row">${fmt(p.conn+p.not)} leads · ${fmt(p.dials)} dials · ${pct(p.conn,p.conn+p.not)} connect</div>`});
+  $("sTable").innerHTML = `<thead><tr><th>Lead stage</th><th class="num">Leads called</th><th class="num">Connected</th><th class="num">Connect rate</th><th class="num">Dials</th><th class="num">Dials per lead</th><th class="num">Share of leads</th><th class="num">Agents</th><th class="num">Not called yet</th></tr></thead><tbody>` +
+    (list.length ? list.map(s=>`<tr><td>${esc(s.stage)}</td><td class="num">${fmt(s.u)}</td><td class="num">${fmt(s.uc)}</td><td class="num">${pct(s.uc,s.u)}</td><td class="num">${fmt(s.dials)}</td><td class="num">${s.u?(s.dials/s.u).toFixed(1):"–"}</td><td class="num">${pct(s.u,U)}</td><td class="num">${s.agents.size}</td><td class="num">${s.pend?`<span class="slow">${fmt(s.pend)}</span>`:"0"}</td></tr>`).join("") + `<tr class="total"><td><b>Total</b></td><td class="num"><b>${fmt(U)}</b></td><td class="num"><b>${fmt(C)}</b></td><td class="num"><b>${pct(C,U)}</b></td><td class="num"><b>${fmt(D)}</b></td><td class="num">${U?(D/U).toFixed(1):"–"}</td><td class="num">100%</td><td class="num"></td><td class="num"><b>${fmt(PN)}</b></td></tr>`
+    : `<tr><td colspan="9" class="empty">No lead-stage data in this range</td></tr>`) + `</tbody>`;
+  // agent × stage
+  $("sMatrixWrap").hidden = state.agent!=="All";
+  if(state.agent==="All"){
+    const cols = list.filter(s=>s.u).slice(0,8).map(s=>s.stage), other = list.filter(s=>s.u).length>8;
+    const A = {}; rows.forEach(r=>{ const a = A[r.agent] ||= {agent:r.agent, team:r.team, u:0, uc:0, c:{}}; a.u+=r.u; a.uc+=r.uc; const k = cols.includes(r.stage)?r.stage:"Other"; const c = a.c[k] ||= {u:0,uc:0}; c.u+=r.u; c.uc+=r.uc; });
+    const ag = Object.values(A).sort((a,b)=>b.u-a.u), keys = other ? cols.concat("Other") : cols;
+    const mx = Math.max(1,...ag.flatMap(a=>keys.map(k=>(a.c[k]||{}).u||0)));
+    $("sMatrix").innerHTML = `<thead><tr><th>Agent</th><th class="num">All stages</th>${keys.map(k=>`<th class="num" title="${esc(k)}">${esc(cut(k))}</th>`).join("")}</tr></thead><tbody>` +
+      (ag.length ? ag.map(a=>`<tr data-agent="${esc(a.agent)}"><td><span class="who"><span class="av">${esc(initials(a.agent))}</span><span>${esc(a.agent)} <span class="team-tag">· ${esc(a.team)}</span></span></span></td><td class="num"><b>${fmt(a.u)}</b> <span class="team-tag">(${fmt(a.uc)})</span></td>${keys.map(k=>{ const c=a.c[k]; return c&&c.u ? `<td class="num heat" style="--h:${(c.u/mx*0.55).toFixed(2)}" title="${esc(k)}: ${fmt(c.u)} leads called, ${fmt(c.uc)} connected">${fmt(c.u)} <span class="team-tag">(${fmt(c.uc)})</span></td>` : `<td class="num team-tag">–</td>`; }).join("")}</tr>`).join("") : `<tr><td colspan="${keys.length+2}" class="empty">No data in this range</td></tr>`) + `</tbody>`;
+    $("sMatrix").querySelectorAll("tbody tr[data-agent]").forEach(tr=>tr.addEventListener("click",()=>{ state.agent=tr.dataset.agent; render(); scrollTo({top:0,behavior:"smooth"}); }));
+  }
+}
+const speedCell = (a,n) => { if(!n) return "–"; const p=a/n; return `<span class="${p>=.5?"good":p<.2?"slow":""}">${Math.round(p*100)}%</span>`; };
+const timeStep = max => { const steps=[60,300,600,900,1800,3600,7200,10800,21600,43200,86400,172800,345600]; return steps.find(s=>max/s<=5) || 604800; };
+
+/* ---------- generic bar chart ---------- */
+function niceStep(max){ const raw=max/4, p=Math.pow(10,Math.floor(Math.log10(raw))), n=raw/p; return (n<=1?1:n<=2?2:n<=5?5:10)*p; }
+function path(x,y,w,h,r,fill,extra=""){ if(h<=0) return ""; r=Math.min(r,h,w/2);
+  return `<path class="seg" ${extra} fill="${fill}" d="M${x},${y+h} L${x},${y+r} Q${x},${y} ${x+r},${y} L${x+w-r},${y} Q${x+w},${y} ${x+w},${y+r} L${x+w},${y+h} Z"/>`; }
+const inrShort = v => v>=1e7 ? "₹"+(v/1e7).toFixed(1)+"Cr" : v>=1e5 ? "₹"+(v/1e5).toFixed(1)+"L" : v>=1e3 ? "₹"+Math.round(v/1e3)+"K" : "₹"+Math.round(v);
+function barChart(id, P, series, valOf, o){
+  const box=$(id); if(!P.length){ box.innerHTML=`<div class="empty">No data in this range</div>`; box._csv=null; return; }
+  const W=Math.max(o.minW||760, P.length*34), H=270, ml=56, mr=8, mt=26, mb=30, iw=W-ml-mr, ih=H-mt-mb;
+  const vals=P.map(valOf), tot=vals.map(v=>series.reduce((s,x)=>s+(v[x.key]||0),0));
+  const max=Math.max(1,...tot), step=(o.step||niceStep)(max), top=Math.ceil(max/step)*step, y=v=>mt+ih-v/top*ih;
+  const bw=iw/P.length, barW=Math.min(40,bw*0.62), every=Math.ceil(P.length/16);
+  let g=`<g class="grid">`, ax=`<g class="axis">`, bars="";
+  for(let v=0; v<=top+1e-9; v+=step){ g+=`<line x1="${ml}" x2="${W-mr}" y1="${y(v)}" y2="${y(v)}"/>`; ax+=`<text x="${ml-6}" y="${y(v)+4}" text-anchor="end">${o.axis(v)}</text>`; }
+  g+=`</g>`;
+  P.forEach((p,i)=>{
+    const x=ml+i*bw+(bw-barW)/2, dl=`style="animation-delay:${Math.min(i*25,600)}ms"`;
+    if(i%every===0) ax+=`<text x="${ml+i*bw+bw/2}" y="${H-9}" text-anchor="middle">${p.label}</text>`;
+    bars+=`<g class="col"><rect class="bg" x="${ml+i*bw+1}" y="${mt}" width="${bw-2}" height="${ih}" rx="6"/>`;
+    let base=mt+ih; const present=series.filter(s=>vals[i][s.key]>0);
+    present.forEach((s,j)=>{ const h=vals[i][s.key]/top*ih, gap=j>0?2:0; base-=gap; bars+=path(x, base-h, barW, h, j===present.length-1?4:0, s.color, dl); base-=h; });
+    if(tot[i] && (P.length<=20 || i%every===0)) bars+=`<text class="vlab" x="${x+barW/2}" y="${base-6}" text-anchor="middle">${o.label(tot[i])}</text>`;
+    bars+=`<rect x="${ml+i*bw}" y="${mt}" width="${bw}" height="${ih}" fill="transparent" data-i="${i}" class="hit"/></g>`;
+  });
+  ax+=`</g>`;
+  box.innerHTML=`<svg class="plot" viewBox="0 0 ${W} ${H}" style="min-width:${Math.min(W,1400)}px" role="img">${g}${ax}${bars}</svg><div class="tip"></div>`;
+  box._csv = [["", ...series.map(x=>x.name||x.key)], ...P.map((p,i)=>[p.full||p.k||p.label, ...series.map(x=>{ const v=vals[i][x.key]||0; return o.csvFmt ? o.csvFmt(v) : Math.round(v*100)/100; })])];
+  const tip=box.querySelector(".tip");
+  box.querySelectorAll(".hit").forEach(el=>{
+    el.addEventListener("mousemove",ev=>{ tip.innerHTML=o.tip(P[+el.dataset.i]); const r=box.getBoundingClientRect();
+      let left=ev.clientX-r.left+box.scrollLeft+12; if(ev.clientX-r.left>r.width-210) left-=224; tip.style.left=left+"px"; tip.style.top=(ev.clientY-r.top-10)+"px"; tip.style.opacity=1; });
+    el.addEventListener("mouseleave",()=>tip.style.opacity=0);
+  });
+}
+
+/* =================== FRIDO ASSISTANT =================== */
+const ASK = { open:false, greeted:false };
+const CHIPS = ["Report for this week","Summary for today","Top 5 agents by revenue this month","Who has the lowest connect rate this week?","Median FRT yesterday","Compare Team A and Team B this month","Which hour has the most connections today?","Who hit target today?","Office Chairs revenue last 7 days"];
+function toggleAsk(open){ ASK.open = open; $("askPanel").hidden = !open; $("askFab").hidden = open;
+  if(open){ if(!ASK.greeted){ ASK.greeted=true; botSay(`<p>Hi! Ask me anything about calls, connects, revenue, orders, conversion, targets or FRT — for any agent, team, product or date.</p><p>For example: <i>“How did Vaishali do yesterday?”</i> or <i>“Top 3 in Team B by connects this week”</i>.</p>`); }
+    $("askChips").innerHTML = CHIPS.map(c=>`<button type="button">${esc(c)}</button>`).join("");
+    $("askChips").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>ask(b.textContent)));
+    setTimeout(()=>$("askInput").focus(),50); } }
+$("askFab").addEventListener("click",()=>toggleAsk(true));
+$("askClose").addEventListener("click",()=>toggleAsk(false));
+addEventListener("keydown",e=>{ if(e.key==="Escape" && ASK.open) toggleAsk(false); });
+$("askForm").addEventListener("submit",e=>{ e.preventDefault(); const q=$("askInput").value.trim(); if(q){ $("askInput").value=""; ask(q); } });
+function say(cls, html){ const d=document.createElement("div"); d.className="msg "+cls; d.innerHTML=html; $("askMsgs").appendChild(d); $("askMsgs").scrollTop=1e9; }
+const botSay = h => say("bot", h);
+const HISTORY = [];
+const builtIn = q => { try{ return answer(q); }catch(err){ return `Sorry, I couldn't work that out. Try rephrasing, e.g. “revenue of Team B this week”.`; } };
+const wantsReport = q => /\breport\b|summary report|weekly summary|monthly summary|pdf/i.test(q);
+async function ask(q){
+  say("me", esc(q));
+  const pr = parseRange(" "+q.toLowerCase()+" ");
+  if(pr){ try{ await ensureMonths(pr.from, pr.to); }catch(e){} }
+  if(wantsReport(q) && !(CONFIG.DATA_URL && AUTH.ai)){ const sc = reportScope(q); botSay(`<p>Here's the report for <b>${esc(sc.title)}</b>. It opens in a new window; use <b>Save as PDF</b> in the print dialog.</p><button class="pdf" type="button" data-report='${esc(JSON.stringify(sc))}'>Open report / Save PDF</button>`); bindPdf(); return; }
+  if(CONFIG.DATA_URL && AUTH.ai){
+    const d=document.createElement("div"); d.className="msg bot"; d.innerHTML=`<span class="typing"><i></i><i></i><i></i></span>`; $("askMsgs").appendChild(d); $("askMsgs").scrollTop=1e9;
+    try{
+      const {ctx, codes, scope} = buildContext(q);
+      const r = await api({action:"ask", token:AUTH.token, q, ctx, history: HISTORY.slice(-3)});
+      if(r.error==="auth"){ d.remove(); showLogin("Your session expired. Please sign in again."); return; }
+      if(r.ok){
+        let text = r.text; Object.entries(codes).forEach(([c,n])=>{ text = text.split(c).join(n); });
+        HISTORY.push({q, a:text.slice(0,2500)});
+        d.innerHTML = md(text) + `<span class="scope">Data used: ${esc(scope)}</span><button class="pdf" type="button" data-pdf="1">Download as PDF</button><span class="ai-tag"> · AI answer — please verify key numbers on the dashboard</span>`;
+        d.querySelector("[data-pdf]").addEventListener("click",()=>printHtml(q, md(text), scope));
+        $("askMsgs").scrollTop=1e9; return;
+      }
+      d.remove();
+      botSay(builtIn(q) + (r.error==="busy" ? `<span class="scope">${esc(r.message)} (answered with the built-in assistant)</span>` : ""));
+    }catch(err){ d.remove(); botSay(builtIn(q)); }
+    return;
+  }
+  setTimeout(()=>botSay(builtIn(q)), 150);
+}
+
+/* ---------- context for the AI: pre-calculated totals, agent names coded ---------- */
+function buildContext(q){
+  const lq = " "+q.toLowerCase()+" ";
+  const r = parseRange(lq) || {from:state.from, to:state.to, label: rangeText(state.from,state.to)};
+  const inR = x => x.date>=r.from && x.date<=r.to;
+  const calls = CALLS.filter(inR), sales = SALES.filter(inR), frt = FRT.filter(inR);
+  const list = agentStats(calls, sales, frt).sort((a,b)=>a.agent.localeCompare(b.agent));
+  const codes = {}, codeOf = {}; list.forEach((a,i)=>{ const c="AG"+String(i+1).padStart(2,"0"); codes[c]=a.agent; codeOf[a.agent]=c; });
+  const f1 = v => v==null?"":(Math.round(v*1000)/10);
+  const L = [];
+  L.push(`PERIOD: ${r.from} to ${r.to} (${r.label}). Today is ${today()}. Data refreshed ${UPDATED}.`);
+  const grp = (name, arr) => { const t={uniq:0,conn:0,dials:0,target:0,rev:0,orders:0,frt:[]}; arr.forEach(a=>{t.uniq+=a.uniq;t.conn+=a.conn;t.dials+=a.dials;t.target+=a.target;t.rev+=a.rev;t.orders+=a.orders;t.frt.push(...a.frt);});
+    return `${name}|${arr.filter(a=>a.dials).length}|${t.dials}|${t.uniq}|${t.conn}|${t.uniq?f1(t.conn/t.uniq):""}|${t.target?f1(t.conn/t.target):""}|${t.orders}|${Math.round(t.rev)}|${t.conn?f1(t.orders/t.conn):""}|${t.frt.length?hms(median(t.frt)):""}|${t.frt.length}`; };
+  L.push("\nTOTALS (name|active agents|dials|dialed unique|connected unique|connect rate %|target achieved %|orders|revenue ₹|conversion %|median FRT|FRT leads):");
+  L.push(grp("ALL", list)); L.push(grp("Mobility", list.filter(a=>a.product==="Mobility"))); L.push(grp("Office Chairs", list.filter(a=>a.product==="Office Chairs")));
+  [...Object.keys(CONFIG.TEAMS), OC_TEAM].forEach(t=>L.push(grp("Team: "+t, list.filter(a=>a.team===t))));
+  L.push("\nAGENTS (code|team|days worked|dials|dialed unique|connected unique|connect rate %|target achieved %|orders|revenue ₹|conversion %|median FRT|FRT leads|peak hour):");
+  list.forEach(a=>L.push(`${codeOf[a.agent]}|${a.team}|${a.days.size}|${a.dials}|${a.uniq}|${a.conn}|${a.uniq?f1(a.rate):""}|${a.target?f1(a.ach):""}|${a.orders}|${Math.round(a.rev)}|${a.conn?f1(a.conv):""}|${a.frt.length?hms(a.frtMed):""}|${a.frt.length}|${a.peak>=0?SLOTS[a.peak]:""}`));
+  const days = {}; calls.forEach(x=>{ const d=days[x.date] ||= {u:0,c:0,r:0,o:0,f:[]}; d.u+=x.u; d.c+=x.uc; }); sales.forEach(x=>{ const d=days[x.date] ||= {u:0,c:0,r:0,o:0,f:[]}; d.r+=x.amount; d.o++; }); frt.forEach(x=>{ const d=days[x.date] ||= {u:0,c:0,r:0,o:0,f:[]}; d.f.push(x.sec); });
+  L.push("\nDAILY (date|dialed unique|connected unique|revenue ₹|orders|median FRT):");
+  Object.keys(days).sort().forEach(k=>{ const d=days[k]; L.push(`${k}|${d.u}|${d.c}|${Math.round(d.r)}|${d.o}|${d.f.length?hms(median(d.f)):""}`); });
+  const sl = SLOTS.map(()=>({u:0,c:0})); calls.forEach(x=>{ if(x.slot>=0&&x.slot<12){ sl[x.slot].u+=x.us; sl[x.slot].c+=x.ucs; } });
+  L.push("\nHOURLY (slot|dialed unique|connected unique):"); sl.forEach((x,i)=>{ if(x.u) L.push(`${SLOTS[i]}|${x.u}|${x.c}`); });
+  const stg={}; STAGE.filter(inR).forEach(x=>{ const s=stg[x.stage] ||= {u:0,c:0,d:0}; s.u+=x.u; s.c+=x.uc; s.d+=x.dials; });
+  L.push("\nLEAD STAGES – current LSQ stage of the leads called (stage|leads called unique|connected unique|dials):"); Object.entries(stg).sort((a,b)=>b[1].u-a[1].u).forEach(([k,v])=>L.push(`${k}|${v.u}|${v.c}|${v.d}`));
+  const pn = PEND.filter(inR); L.push(`\nFRT is in ${frtModeText()}. Leads created in the period that have NOT been called yet: ${pn.length}.`);
+  const dm={}; calls.forEach(x=>{ if(x.dispo) dm[x.dispo]=(dm[x.dispo]||0)+x.dials; });
+  L.push("\nTOP DISPOSITIONS (disposition|dials):"); Object.entries(dm).sort((a,b)=>b[1]-a[1]).slice(0,10).forEach(([k,v])=>L.push(`${k}|${v}`));
+  return {ctx:L.join("\n"), codes, scope: `${r.label} · ${list.length} agents`};
+}
+
+/* ---------- tiny markdown renderer ---------- */
+function md(src){
+  const inline = t => esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/(^|[^*])\*(?!\s)(.+?)\*/g,"$1<i>$2</i>").replace(/`(.+?)`/g,"<code>$1</code>");
+  const lines = String(src).replace(/\r/g,"").split("\n"); let out="", i=0;
+  while(i<lines.length){
+    const l = lines[i];
+    if(/^\s*\|.*\|\s*$/.test(l) && i+1<lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i+1])){
+      const row = x => x.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim());
+      const head = row(l); i+=2; let body="";
+      while(i<lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){ body += "<tr>"+row(lines[i]).map((c,j)=>`<td class="${j&&/^[₹\d\-–.,:%\s]+$/.test(c)?"num":""}">${inline(c)}</td>`).join("")+"</tr>"; i++; }
+      out += `<table><thead><tr>${head.map((h,j)=>`<th class="${j?"num":""}">${inline(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`; continue;
+    }
+    if(/^\s*[-*•]\s+/.test(l)){ out+="<ul>"; while(i<lines.length && /^\s*[-*•]\s+/.test(lines[i])){ out+=`<li>${inline(lines[i].replace(/^\s*[-*•]\s+/,""))}</li>`; i++; } out+="</ul>"; continue; }
+    if(/^\s*\d+[.)]\s+/.test(l)){ out+="<ol>"; while(i<lines.length && /^\s*\d+[.)]\s+/.test(lines[i])){ out+=`<li>${inline(lines[i].replace(/^\s*\d+[.)]\s+/,""))}</li>`; i++; } out+="</ol>"; continue; }
+    const h = l.match(/^\s*#{1,6}\s+(.*)/); if(h){ out+=`<h4>${inline(h[1])}</h4>`; i++; continue; }
+    if(l.trim()) out+=`<p>${inline(l)}</p>`; i++;
+  }
+  return out;
+}
+
+/* ---------- reports (built-in, no AI needed) ---------- */
+function reportScope(q){
+  const lq = " "+(q||"").toLowerCase()+" ";
+  const r = (q && parseRange(lq)) || {from:state.from, to:state.to, label:rangeText(state.from,state.to)};
+  const teams = q ? findTeams(lq) : []; const p = q ? findProduct(lq) : null;
+  const team = teams[0] || (q ? null : (state.team!=="All"?state.team:null));
+  const product = (p && p!=="both") ? p : (q ? null : (state.product!=="All"?state.product:null));
+  return {from:r.from, to:r.to, label:r.label, team, product, title: `${team||product||"All teams"} · ${r.label}`};
+}
+function bindPdf(){ $("askMsgs").querySelectorAll("[data-report]").forEach(b=>{ if(b._b) return; b._b=1; b.addEventListener("click",async()=>{ const sc=JSON.parse(b.dataset.report); try{ await ensureMonths(sc.from,sc.to); }catch(e){} openReport(sc); }); }); }
+const VIEW_TITLE = {overview:"Overview", agents:"Agent Analysis", frt:"FRT Analysis", stage:"Lead Stage Analysis"};
+const scopeText = () => `${rangeText(state.from,state.to)} · ${state.product==="All"?"All products":state.product} · ${state.team==="All"?"All teams":state.team}${state.agent!=="All"?" · "+state.agent:""}`;
+$("reportBtn").addEventListener("click",()=>{ if(state.view==="overview") openReport(reportScope("")); else printView(state.view); });
+function cleanClone(el){
+  const c = el.cloneNode(true);
+  c.querySelectorAll(".sec-tools,.view-ctl,details.info,.tip,.hit").forEach(x=>x.remove());
+  c.querySelectorAll("[hidden]").forEach(x=>x.remove());
+  return c;
+}
+function printView(v){ printHtml(`${VIEW_TITLE[v]} — ${state.agent!=="All"?state.agent:state.team!=="All"?state.team:state.product!=="All"?state.product:"All teams"}`, cleanClone($("view-"+v)).innerHTML, scopeText()); }
+/* every section gets its own PDF + Excel buttons */
+function addSectionTools(){
+  document.querySelectorAll('[id^="view-"] h2').forEach(h=>{
+    if(h.querySelector(".sec-tools")) return;
+    const t = document.createElement("span"); t.className="sec-tools";
+    t.innerHTML = `<button type="button" data-x="pdf" title="Download this section as PDF">PDF</button><button type="button" data-x="xls" title="Download this section for Excel">Excel</button>`;
+    h.appendChild(t);
+    t.addEventListener("click", e=>{ const b=e.target.closest("button"); if(!b) return; const block=h.parentElement, title=h.firstChild.textContent.trim();
+      if(b.dataset.x==="pdf") printHtml(`${title}`, cleanClone(block).innerHTML.replace(/<h2[\s\S]*?<\/h2>/,""), scopeText());
+      else { const rows = sectionRows(block); if(!rows || rows.length<2) { alert("Nothing to download in this section for the selected range."); return; }
+        downloadCsv(`frido-isd-${title.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}-${state.from}_to_${state.to}.csv`, [[title], [scopeText()], [], ...rows]); } });
+  });
+}
+function cellText(td){ const c = td.cloneNode(true); c.querySelectorAll(".av,.delta-up,.delta-dn,.sec-tools").forEach(x=>x.remove()); let t = c.textContent.replace(/\s+/g," ").trim(); if(/^₹?-?[\d,]+(\.\d+)?$/.test(t)) t = t.replace(/[₹,]/g,""); return t; }
+function sectionRows(block){
+  const t = block.querySelector("table"); if(t) return [...t.querySelectorAll("tr")].map(tr=>[...tr.children].map(cellText));
+  const ch = block.querySelector(".chart"); if(ch && ch._csv) return ch._csv;
+  const hb = block.querySelectorAll(".hbar-row,.speed-row");
+  if(hb.length){ const sp = block.querySelector(".speed-row"); return [sp?["Speed","Leads","Share"]:["Item","Count"], ...[...hb].map(r=>{ if(r.classList.contains("hbar-row")){ const m=(r.getAttribute("title")||"").match(/^(.*): ([\d,]+)/); return [r.querySelector(".name").textContent, (m?m[2]:r.querySelector(".v").textContent).replace(/,/g,"")]; } return [...r.children].filter(c=>!c.classList.contains("track")).map(c=>c.textContent.replace(/,/g,"").trim()); })]; }
+  return null;
+}
+function downloadCsv(name, rows){
+  const csv = "﻿" + rows.map(r=>r.map(v=>{ v = String(v==null?"":v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }).join(",")).join("\r\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})); a.download = name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 800);
+}
+function openReport(sc){
+  const pick = x => x.date>=sc.from && x.date<=sc.to && (!sc.team||x.team===sc.team) && (!sc.product||x.product===sc.product);
+  const calls=CALLS.filter(pick), sales=SALES.filter(pick), frt=FRT.filter(pick);
+  const list = agentStats(calls,sales,frt); const act = list.filter(a=>a.dials);
+  const T = {dials:sum(list,"dials"),uniq:sum(list,"uniq"),conn:sum(list,"conn"),target:sum(list,"target"),rev:sum(list,"rev"),orders:sum(list,"orders")};
+  const fs = frt.map(x=>x.sec);
+  const teams={}; list.forEach(a=>{ const t=teams[a.team] ||= {uniq:0,conn:0,target:0,rev:0,orders:0,frt:[],n:0}; if(a.dials)t.n++; t.uniq+=a.uniq;t.conn+=a.conn;t.target+=a.target;t.rev+=a.rev;t.orders+=a.orders;t.frt.push(...a.frt); });
+  const byRev = list.slice().sort((a,b)=>b.rev-a.rev), byConn = act.slice().sort((a,b)=>b.conn-a.conn);
+  const lowRate = act.filter(a=>a.uniq>=20).sort((a,b)=>a.rate-b.rate).slice(0,5);
+  const days={}; calls.forEach(x=>{ const d=days[x.date] ||= {u:0,c:0,r:0,o:0}; d.u+=x.u; d.c+=x.uc; }); sales.forEach(x=>{ const d=days[x.date] ||= {u:0,c:0,r:0,o:0}; d.r+=x.amount; d.o++; });
+  const hit = act.filter(a=>a.ach>=1).length;
+  const kpi = (l,v) => `<div class="k"><div class="l">${l}</div><div class="v">${v}</div></div>`;
+  const html = `<div class="k-row">${kpi("Connected (unique)",fmt(T.conn))}${kpi("Dialed (unique)",fmt(T.uniq))}${kpi("Connect rate",pct(T.conn,T.uniq))}${kpi("Target achieved",pct(T.conn,T.target))}${kpi("Revenue",inr(T.rev))}${kpi("Orders",fmt(T.orders))}${kpi("Conversion",T.conn?pct1(T.orders,T.conn):"–")}${kpi("Median FRT",fs.length?hms(median(fs)):"–")}</div>
+  <p><b>Summary:</b> ${act.length} active agents made ${fmt(T.dials)} dials to ${fmt(T.uniq)} unique numbers and connected ${fmt(T.conn)} (${pct(T.conn,T.uniq)}). ${hit} agent${hit===1?"":"s"} reached the target. Revenue was ${inr(T.rev)} from ${fmt(T.orders)} orders${T.orders?` (avg ${inr(T.rev/T.orders)})`:""}.${fs.length?` Median first response time was ${hms(median(fs))} across ${fmt(fs.length)} leads, ${pct(fs.filter(s=>s<=300).length,fs.length)} within 5 minutes.`:""}</p>
+  <h3>Teams</h3><table><thead><tr><th>Team</th><th>Agents</th><th>Dialed</th><th>Connected</th><th>Rate</th><th>Target</th><th>Orders</th><th>Revenue</th><th>Median FRT</th></tr></thead><tbody>${Object.entries(teams).sort((a,b)=>b[1].conn-a[1].conn).map(([n,t])=>`<tr><td>${esc(n)}</td><td>${t.n}</td><td>${fmt(t.uniq)}</td><td>${fmt(t.conn)}</td><td>${pct(t.conn,t.uniq)}</td><td>${pct(t.conn,t.target)}</td><td>${fmt(t.orders)}</td><td>${inr(t.rev)}</td><td>${hms(median(t.frt))}</td></tr>`).join("")}</tbody></table>
+  <div class="two"><div><h3>Top 5 by revenue</h3><table><tbody>${byRev.slice(0,5).map((a,i)=>`<tr><td>${i+1}. ${esc(a.agent)}</td><td>${inr(a.rev)}</td><td>${fmt(a.orders)} order${a.orders===1?"":"s"}</td></tr>`).join("")}</tbody></table></div>
+  <div><h3>Top 5 by connected calls</h3><table><tbody>${byConn.slice(0,5).map((a,i)=>`<tr><td>${i+1}. ${esc(a.agent)}</td><td>${fmt(a.conn)}</td><td>${pct(a.conn,a.target)} of target</td></tr>`).join("")}</tbody></table></div></div>
+  ${lowRate.length?`<h3>Needs attention — lowest connect rate</h3><table><tbody>${lowRate.map(a=>`<tr><td>${esc(a.agent)} <span class="m">· ${esc(a.team)}</span></td><td>${pct(a.conn,a.uniq)}</td><td>${fmt(a.uniq)} dialed</td></tr>`).join("")}</tbody></table>`:""}
+  <h3>Day-wise</h3><table><thead><tr><th>Date</th><th>Dialed</th><th>Connected</th><th>Rate</th><th>Orders</th><th>Revenue</th></tr></thead><tbody>${Object.keys(days).sort().map(k=>{ const d=days[k]; return `<tr><td>${dLabel(k)}</td><td>${fmt(d.u)}</td><td>${fmt(d.c)}</td><td>${pct(d.c,d.u)}</td><td>${fmt(d.o)}</td><td>${inr(d.r)}</td></tr>`; }).join("")}</tbody></table>
+  <h3>All agents</h3><table class="ag"><thead><tr><th>Agent</th><th>Team</th><th>Dials</th><th>Dialed</th><th>Connected</th><th>Rate</th><th>Target</th><th>Orders</th><th>Revenue</th><th>Median FRT</th></tr></thead><tbody>${byConn.map(a=>`<tr><td>${esc(a.agent)}</td><td>${esc(a.team)}</td><td>${fmt(a.dials)}</td><td>${fmt(a.uniq)}</td><td>${fmt(a.conn)}</td><td>${pct(a.conn,a.uniq)}</td><td>${pct(a.conn,a.target)}</td><td>${fmt(a.orders)}</td><td>${inr(a.rev)}</td><td>${hms(a.frtMed)}</td></tr>`).join("")}</tbody></table>`;
+  printHtml(`Performance report — ${sc.title}`, html, `${rangeText(sc.from,sc.to)}${sc.team?" · "+sc.team:""}${sc.product?" · "+sc.product:""}`);
+}
+function printHtml(title, inner, scope){
+  const w = window.open("", "_blank"); if(!w){ alert("Please allow pop-ups for this site to open the report."); return; }
+  const logo = CONFIG.LOGO_URL ? `<img src="${CONFIG.LOGO_URL}" alt="Frido">` : "";
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
+  body{font-family:Inter,system-ui,Arial,sans-serif;color:#14130f;margin:32px;font-size:13px;line-height:1.5}
+  .hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid #ffd101;padding-bottom:12px;margin-bottom:16px} .hd img{height:40px;border-radius:8px}
+  h1{font-size:20px;margin:0} .s{color:#6b6754;font-size:12px} h3{font-size:15px;margin:20px 0 6px;border-left:4px solid #141414;padding-left:8px} h4{margin:14px 0 4px}
+  table{width:100%;border-collapse:collapse;margin:6px 0} th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ece8dc} th{background:#faf7ee;font-weight:600;font-size:12px}
+  td:not(:first-child),th:not(:first-child){text-align:right} .ag td:nth-child(2),.ag th:nth-child(2){text-align:left} .m{color:#6b6754}
+  .k-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0 14px} .k{border:1px solid #ece8dc;border-radius:10px;padding:10px 12px} .k .l{color:#6b6754;font-size:11px} .k .v{font-size:18px;font-weight:700}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px} .foot{margin-top:24px;color:#6b6754;font-size:11px}
+  .pbar{position:sticky;top:0;background:#fff;padding:8px 0;text-align:right} .pbar button{background:#141414;color:#ffd101;border:none;border-radius:999px;padding:8px 16px;font-weight:700;cursor:pointer}
+  :root{--series-connected:#e9a100;--series-notconn:#5b6b85;--line:#ece8dc;--yellow:#ffd101;--yellow-2:#ffb300}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0 14px} .kpi{border:1px solid #ece8dc;border-radius:10px;padding:10px 12px} .kpi .lbl{color:#6b6754;font-size:11px} .kpi .val{font-size:18px;font-weight:700} .kpi .note{color:#6b6754;font-size:11px}
+  .card{border:1px solid #ece8dc;border-radius:10px;padding:10px;margin:6px 0} .sub{color:#6b6754;font-size:12px;margin:0 0 6px} h2{font-size:15px;margin:18px 0 4px;border-left:4px solid #141414;padding-left:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px} .grid2>div{min-width:0} section{page-break-inside:avoid}
+  .legend{display:flex;gap:14px;font-size:11px;color:#4d4a40;margin:2px 0 6px} .legend span{display:inline-flex;align-items:center;gap:5px} .sw{display:inline-block;width:10px;height:10px;border-radius:2px}
+  svg.plot{width:100%;height:auto;min-width:0!important} .axis text{fill:#6b6754;font-size:11px} .grid line{stroke:#ece8dc} .vlab{fill:#333;font-size:11px;font-weight:600} .col .bg,.hit{fill:transparent} .tip{display:none}
+  .hbar-row,.speed-row{display:grid;grid-template-columns:150px 1fr 60px 50px;gap:8px;align-items:center;padding:3px 0;font-size:12px} .track{height:10px;background:#f1eee4;border-radius:5px;overflow:hidden;display:block} .track i{display:block;height:100%;background:#ffb300}
+  .av,.sec-tools,.medal{display:none} .who{display:inline} .team-tag{color:#6b6754;font-size:11px} .prog{display:inline-flex;gap:6px;align-items:center} .bar{display:inline-block;width:60px;height:6px;background:#eee;border-radius:3px;position:relative} .bar i{position:absolute;left:0;top:0;bottom:0;background:#ffb300;border-radius:3px}
+  .heat{background:rgba(255,179,0,var(--h))} .good{color:#0a7a0a;font-weight:600} .slow{color:#b42318;font-weight:600} .delta-up{color:#0a7a0a} .delta-dn{color:#b42318} .empty{color:#6b6754;text-align:center;padding:12px}
+  @media print{.pbar{display:none} body{margin:12mm}} tr{page-break-inside:avoid}
+  </style></head><body><div class="pbar"><button onclick="window.print()">Save as PDF / Print</button></div>
+  <div class="hd">${logo}<div><h1>${esc(title)}</h1><div class="s">Frido ISD Calling Performance · ${esc(scope)} · generated ${new Date().toLocaleString("en-IN")}</div></div></div>
+  ${inner}<div class="foot">Confidential — Frido internal use only. Dialed/Connected count unique leads per agent per day. Target = ${CONFIG.DAILY_TARGET} unique connects per agent per day. FRT in ${frtModeText()}.</div></body></html>`);
+  w.document.close();
+}
+
+const NUMW = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10};
+function parseRange(q){
+  const t = today();
+  const MONTHS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+  const mk = (d,m,y) => { y = y ? (+y<100 ? 2000 + +y : +y) : +t.slice(0,4); return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`; };
+  const dates = [];
+  const re1 = /\b(\d{1,2})(?:st|nd|rd|th)?\s*(?:of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?(?:\s*,?\s*(\d{4}))?/g; let m;
+  while((m=re1.exec(q))) dates.push(mk(m[1], MONTHS.indexOf(m[2])+1, m[3]));
+  const re2 = /\b(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\b/g;
+  while((m=re2.exec(q))) if(+m[2]<=12) dates.push(mk(m[1], m[2], m[3]));
+  if(dates.length>=2){ dates.sort(); return {from:dates[0], to:dates[dates.length-1], label:rangeText(dates[0],dates[dates.length-1])}; }
+  if(dates.length===1) return {from:dates[0], to:dates[0], label:dLabel(dates[0])};
+  if(/\bday before yesterday\b/.test(q)) { const d=addDays(t,-2); return {from:d,to:d,label:dLabel(d)}; }
+  if(/\byesterday\b/.test(q)) { const d=addDays(t,-1); return {from:d,to:d,label:"yesterday"}; }
+  if(/\btoday\b|\bnow\b|\bso far\b/.test(q)) return {from:t,to:t,label:"today"};
+  m = q.match(/\b(?:last|past|previous)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(day|week|month)s?\b/);
+  if(m){ const n = NUMW[m[1]]||+m[1], mult = m[2]==="week"?7:m[2]==="month"?30:1; return {from:addDays(t,-(n*mult-1)),to:t,label:`last ${n} ${m[2]}${n>1?"s":""}`}; }
+  if(/\bweekly\b|\bweek report\b/.test(q) && !/last week|previous week/.test(q)) return {from:weekStart(t),to:t,label:"this week"};
+  if(/\bmonthly\b|\bmonth report\b/.test(q) && !/last month|previous month/.test(q)) return {from:t.slice(0,8)+"01",to:t,label:"this month"};
+  if(/\blast week\b|\bprevious week\b/.test(q)){ const s=addDays(weekStart(t),-7); return {from:s,to:addDays(s,6),label:"last week"}; }
+  if(/\bthis week\b|\bweek so far\b|\bcurrent week\b/.test(q)) return {from:weekStart(t),to:t,label:"this week"};
+  if(/\blast month\b|\bprevious month\b/.test(q)){ const d=pd(t); const s=iso(new Date(d.getFullYear(),d.getMonth()-1,1)), e=iso(new Date(d.getFullYear(),d.getMonth(),0)); return {from:s,to:e,label:"last month"}; }
+  if(/\bthis month\b|\bmonth so far\b|\bmtd\b|\bcurrent month\b/.test(q)) return {from:t.slice(0,8)+"01",to:t,label:"this month"};
+  if(/\ball time\b|\boverall\b|\bever\b/.test(q)){ const [f,e]=rangeDates("all"); return {from:f,to:e,label:"all time"}; }
+  return null;
+}
+function knownAgents(){ return [...new Set(CALLS.map(r=>r.agent).concat(SALES.map(r=>r.agent)))]; }
+function findAgents(q){
+  const names = knownAgents(), hits = new Set(), amb = [];
+  const words = q.replace(/[^a-z\s]/g," ");
+  names.forEach(n=>{ const l=n.toLowerCase(); if(new RegExp("\\b"+l.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b").test(words)) hits.add(n); });
+  names.forEach(n=>{ if(hits.has(n)) return; const s=short(n); if(s.includes(" ") && new RegExp("\\b"+s+"\\b").test(words)) hits.add(n); });
+  const taken = [...hits].map(n=>n.toLowerCase().split(/\s+/)[0]);
+  const byFirst = {}; names.forEach(n=>{ const f=n.toLowerCase().split(/\s+/)[0]; (byFirst[f] ||= []).push(n); });
+  Object.entries(byFirst).forEach(([f,list])=>{ if(f.length<3 || taken.includes(f)) return; if(new RegExp("\\b"+f+"\\b").test(words)){ if(list.length===1) hits.add(list[0]); else amb.push(list); } });
+  return {agents:[...hits], amb};
+}
+function findTeams(q){
+  const out=[];
+  Object.keys(CONFIG.TEAMS).forEach(t=>{ const letter = (t.match(/Team\s+([A-Z])/)||[])[1], lead = (t.split("–")[1]||"").trim().toLowerCase();
+    if((letter && new RegExp("\\bteam\\s*"+letter.toLowerCase()+"\\b").test(q)) || (lead && new RegExp("\\b"+lead+"(?:'s)?\\s*team\\b|\\bteam\\s*"+lead+"\\b").test(q))) out.push(t); });
+  return out.sort((a,b)=>{ const pos=t=>{ const L=(t.match(/Team\s+([A-Z])/)||[])[1].toLowerCase(); const i=q.search(new RegExp("team\\s*"+L+"\\b")); return i<0?999:i; }; return pos(a)-pos(b); });
+}
+function findProduct(q){ const oc=/office\s*chair|\bchairs?\b|\boc\b|ergonomic/.test(q), mob=/\bmobility\b/.test(q); return oc&&mob ? "both" : oc ? "Office Chairs" : mob ? "Mobility" : null; }
+const METRICS = [
+  {k:"frt", re:/\bfrt\b|first response|response time|respond|reply time|how fast|how quickly/, label:"Median FRT", fmt:v=>hms(v), low:true},
+  {k:"aov", re:/average order|avg order|\baov\b|order value|basket/, label:"Avg order value", fmt:inr},
+  {k:"conv", re:/conversion|convert|close rate|closing rate/, label:"Conversion", fmt:v=>(v*100).toFixed(1)+"%"},
+  {k:"rate", re:/connect(ion|ivity)?\s*(rate|%|percent|ratio)|connect rate|pick ?up rate/, label:"Connect rate", fmt:v=>Math.round(v*100)+"%"},
+  {k:"ach", re:/target|achiev/, label:"Target achieved", fmt:v=>Math.round(v*100)+"%"},
+  {k:"rev", re:/revenue|sales?\b|sold|business|amount|₹|rupee|earn|money/, label:"Revenue", fmt:inr},
+  {k:"orders", re:/orders?|deals?|closures?|conversions? count/, label:"Orders", fmt:fmt},
+  {k:"dials", re:/\bdials?\b|attempts?|total (?:calls|dials) including|repeat/, label:"Dials", fmt:fmt},
+  {k:"conn", re:/connect(ed|s|ions)?\b|picked|answered/, label:"Unique connected", fmt:fmt},
+  {k:"uniq", re:/\bcalls?\b|dialed|dialled|numbers|unique|leads called/, label:"Unique dialed", fmt:fmt},
+];
+function pickMetric(q){ for(const m of METRICS) if(m.re.test(q)) return m; return null; }
+
+function answer(qRaw){
+  const q = " "+qRaw.toLowerCase().replace(/[’']/g,"'")+" ";
+  if(!CALLS.length && !SALES.length) return "The data hasn't loaded yet. Please wait a moment and ask again.";
+  if(/^\s*(hi|hello|hey|namaste|hii+)\b/.test(q) && q.trim().split(/\s+/).length<=3) return "Hello! What would you like to know? Try “summary for today”.";
+  if(/\bhelp\b|what can you|how to use/.test(q)) return `<p>I can answer questions like:</p><ul style="margin:0;padding-left:18px"><li>Summary for today / this week</li><li>How did <i>agent</i> do yesterday?</li><li>Top 5 by revenue this month</li><li>Lowest connect rate in Team B</li><li>Compare Team A and Team C</li><li>Median FRT of Office Chairs last 7 days</li><li>Peak hour today · Who hit target today?</li></ul>`;
+  const range = parseRange(q) || {from:state.from, to:state.to, label: rangeText(state.from,state.to)+" (dashboard range)"};
+  const {agents, amb} = findAgents(q); const teams = findTeams(q); let product = findProduct(q);
+  if(amb.length && !agents.length) return `Which one do you mean: ${amb[0].map(n=>`<b>${esc(n)}</b>`).join(" or ")}? Please include the surname.`;
+  const metric = pickMetric(q);
+  const inRange = r => r.date>=range.from && r.date<=range.to;
+  const filt = extra => r => inRange(r) && (!product||product==="both"||r.product===product) && (!teams.length||teams.includes(r.team)) && (!extra||extra(r));
+  const scopeLabel = [agents.length?agents.join(", "):teams.length?teams.join(", "):product&&product!=="both"?product:"All agents", range.label].join(" · ");
+  const scopeNote = `<span class="scope">Scope: ${esc(scopeLabel)}${!parseRange(q)?" — add a date like “today” or “this week” to change it":""}</span>`;
+  const statsFor = extra => agentStats(CALLS.filter(filt(extra)), SALES.filter(filt(extra)), FRT.filter(filt(extra)));
+  const totals = list => { const fr=[].concat(...list.map(a=>a.frt)); const o={dials:sum(list,"dials"), uniq:sum(list,"uniq"), conn:sum(list,"conn"), target:sum(list,"target"), rev:sum(list,"rev"), orders:sum(list,"orders"), frt:fr, agents:list.filter(a=>a.dials).length};
+    o.rate=o.uniq?o.conn/o.uniq:0; o.ach=o.target?o.conn/o.target:0; o.conv=o.conn?o.orders/o.conn:0; o.aov=o.orders?o.rev/o.orders:0; o.frtMed=median(fr); return o; };
+  const val = (o,k) => k==="frt" ? (o.frtMed ?? o.frtMed) : o[k];
+  const summary = (o,title) => `<p><b>${esc(title)}</b></p><table><tbody>
+    <tr><td>Connected (unique)</td><td class="num"><b>${fmt(o.conn)}</b></td></tr>
+    <tr><td>Dialed (unique) · dials</td><td class="num">${fmt(o.uniq)} · ${fmt(o.dials)}</td></tr>
+    <tr><td>Connect rate</td><td class="num">${pct(o.conn,o.uniq)}</td></tr>
+    <tr><td>Target achieved</td><td class="num">${o.target?pct(o.conn,o.target):"–"}</td></tr>
+    <tr><td>Revenue · orders</td><td class="num"><b>${inr(o.rev)}</b> · ${fmt(o.orders)}</td></tr>
+    <tr><td>Avg order · conversion</td><td class="num">${o.orders?inr(o.aov):"–"} · ${o.conn?pct1(o.orders,o.conn):"–"}</td></tr>
+    <tr><td>Median FRT</td><td class="num mono">${o.frt.length?hms(o.frtMed)+` (${fmt(o.frt.length)} leads)`:"–"}</td></tr></tbody></table>`;
+
+  // hour / peak
+  if(/\bpeak\b|which hour|what hour|best hour|by hour|hourly|which slot|time slot/.test(q)){
+    const calls = CALLS.filter(filt(agents.length?r=>agents.includes(r.agent):null)); const c=SLOTS.map(()=>({u:0,c:0}));
+    calls.forEach(r=>{ if(r.slot>=0&&r.slot<12){ c[r.slot].u+=r.us; c[r.slot].c+=r.ucs; } });
+    const rows = c.map((x,i)=>({s:SLOTS[i],...x})).filter(x=>x.u); if(!rows.length) return "No calls found for that scope."+scopeNote;
+    const best = rows.slice().sort((a,b)=>b.c-a.c)[0];
+    return `<p>Peak slot is <b>${best.s}</b> with <b>${fmt(best.c)}</b> unique connects (${pct(best.c,best.u)} connect rate).</p><table><thead><tr><th>Slot</th><th class="num">Dialed</th><th class="num">Connected</th><th class="num">Rate</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.s}</td><td class="num">${fmt(r.u)}</td><td class="num">${fmt(r.c)}</td><td class="num">${pct(r.c,r.u)}</td></tr>`).join("")}</tbody></table>${scopeNote}`;
+  }
+  // who hit / missed target
+  if(/target/.test(q) && /\bwho\b|which agents?|list|how many|hit|met|achiev|complet|miss|below|not/.test(q) && !agents.length){
+    const list = statsFor().filter(a=>a.dials);
+    const missed = /miss|below|not|didn|fail|short/.test(q);
+    const sel = list.filter(a=> missed ? a.ach<1 : a.ach>=1).sort((a,b)=>b.ach-a.ach);
+    return `<p><b>${sel.length}</b> of ${list.length} agents ${missed?"are below":"hit"} the target (${CONFIG.DAILY_TARGET} unique connects per day).</p>${sel.length?`<table><thead><tr><th>Agent</th><th class="num">Connected</th><th class="num">Target</th></tr></thead><tbody>${sel.slice(0,25).map(a=>`<tr><td>${esc(a.agent)}</td><td class="num">${fmt(a.conn)}</td><td class="num">${pct(a.conn,a.target)}</td></tr>`).join("")}</tbody></table>`:""}${scopeNote}`;
+  }
+  // compare
+  const compareTeams = teams.length>=2 || (/compare|\bvs\b|versus|against/.test(q) && (teams.length>=2 || product==="both"));
+  if(agents.length>=2 || compareTeams || (product==="both" && !agents.length)){
+    let groups;
+    if(agents.length>=2) groups = agents.map(a=>({name:a, o:totals(statsFor(r=>r.agent===a))}));
+    else if(teams.length>=2){ groups = teams.map(t=>({name:t, o:totals(agentStats(CALLS.filter(r=>inRange(r)&&r.team===t), SALES.filter(r=>inRange(r)&&r.team===t), FRT.filter(r=>inRange(r)&&r.team===t)))})); }
+    else groups = ["Mobility","Office Chairs"].map(p=>({name:p, o:totals(agentStats(CALLS.filter(r=>inRange(r)&&r.product===p), SALES.filter(r=>inRange(r)&&r.product===p), FRT.filter(r=>inRange(r)&&r.product===p)))}));
+    const rows = [["Connected (unique)",o=>fmt(o.conn)],["Dialed (unique)",o=>fmt(o.uniq)],["Connect rate",o=>pct(o.conn,o.uniq)],["Target",o=>o.target?pct(o.conn,o.target):"–"],["Revenue",o=>inr(o.rev)],["Orders",o=>fmt(o.orders)],["Conversion",o=>o.conn?pct1(o.orders,o.conn):"–"],["Median FRT",o=>hms(o.frtMed)]];
+    let lead=""; if(metric){ const best = groups.slice().sort((a,b)=> metric.low ? (val(a.o,metric.k)??1e12)-(val(b.o,metric.k)??1e12) : (val(b.o,metric.k)||0)-(val(a.o,metric.k)||0))[0]; lead = `<p><b>${esc(best.name)}</b> leads on ${metric.label.toLowerCase()} (${metric.fmt(val(best.o,metric.k)||0)}).</p>`; }
+    return `${lead}<table><thead><tr><th></th>${groups.map(g=>`<th class="num">${esc(g.name)}</th>`).join("")}</tr></thead><tbody>${rows.map(([l,f])=>`<tr><td>${l}</td>${groups.map(g=>`<td class="num">${f(g.o)}</td>`).join("")}</tr>`).join("")}</tbody></table><span class="scope">Period: ${esc(range.label)}</span>`;
+  }
+  // ranking
+  const nm = q.match(/\b(?:top|bottom|best|worst|lowest|highest)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/);
+  const isLow = /lowest|worst|bottom|least|poorest|minimum|\bmin\b|slowest|weakest|underperform/.test(q);
+  const isRank = isLow || /\btop\b|best|highest|most|maximum|leader|rank|\bwho\b|which agent|fastest|star|winner/.test(q);
+  if(isRank && agents.length<=1 && !/\bwho is\b.*\bin team\b/.test(q)){
+    const m = metric || METRICS.find(x=>x.k==="conn");
+    let list = statsFor().filter(a=> m.k==="frt" ? a.frt.length : a.dials || a.orders);
+    if(m.k==="rate") list = list.filter(a=>a.uniq>=10);
+    if(m.k==="conv") list = list.filter(a=>a.conn>=10);
+    const v = a => m.k==="frt" ? a.frtMed : a[m.k];
+    const lowFirst = m.low ? !/slowest|worst|highest|longest/.test(q) : isLow;
+    list.sort((a,b)=> lowFirst ? v(a)-v(b) : v(b)-v(a));
+    const n = nm ? (NUMW[nm[1]]||+nm[1]) : (/\bwho\b/.test(q) && !/\btop\b/.test(q) ? 1 : 5);
+    if(!list.length) return "No data found for that scope."+scopeNote;
+    const sel = list.slice(0,n);
+    const head = n===1 ? `<p><b>${esc(sel[0].agent)}</b> (${esc(sel[0].team)}) — ${m.label.toLowerCase()} <b>${m.fmt(v(sel[0]))}</b>.</p>` : `<p>${lowFirst&&!m.low?"Bottom":"Top"} ${sel.length} by ${m.label.toLowerCase()}${m.low&&lowFirst?" (fastest first)":""}:</p>`;
+    return `${head}<table><thead><tr><th>#</th><th>Agent</th><th class="num">${m.label}</th>${m.k!=="conn"?`<th class="num">Connected</th>`:""}${m.k!=="rev"?`<th class="num">Revenue</th>`:`<th class="num">Orders</th>`}</tr></thead><tbody>${sel.map((a,i)=>`<tr><td>${i+1}</td><td>${esc(a.agent)}</td><td class="num"><b>${m.fmt(v(a))}</b></td>${m.k!=="conn"?`<td class="num">${fmt(a.conn)}</td>`:""}${m.k!=="rev"?`<td class="num">${inr(a.rev)}</td>`:`<td class="num">${fmt(a.orders)}</td>`}</tr>`).join("")}</tbody></table>${(m.k==="rate"||m.k==="conv")?`<span class="scope">Agents with at least 10 ${m.k==="rate"?"unique dials":"connects"} only.</span>`:""}${scopeNote}`;
+  }
+  // trend (day/week)
+  if(/trend|day.?wise|daily|each day|per day|week.?wise|weekly|each week|per week/.test(q)){
+    const wk = /week.?wise|weekly|each week|per week|by week/.test(q); const m = metric || METRICS.find(x=>x.k==="conn");
+    const extra = agents.length ? r=>r.agent===agents[0] : null; const P={};
+    const k = d => wk ? weekStart(d) : d;
+    const bucket = d => P[k(d)] ||= {calls:[],sales:[],frt:[]};
+    CALLS.filter(filt(extra)).forEach(r=>bucket(r.date).calls.push(r)); SALES.filter(filt(extra)).forEach(r=>bucket(r.date).sales.push(r)); FRT.filter(filt(extra)).forEach(r=>bucket(r.date).frt.push(r));
+    const rows = Object.keys(P).sort().map(key=>({key, o:totals(agentStats(P[key].calls,P[key].sales,P[key].frt))}));
+    if(!rows.length) return "No data found for that scope."+scopeNote;
+    return `<p>${wk?"Week":"Day"}-wise ${m.label.toLowerCase()}:</p><table><thead><tr><th>${wk?"Week":"Date"}</th><th class="num">${m.label}</th><th class="num">Connected</th><th class="num">Revenue</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${wk?wLabel(r.key):dLabel(r.key)}</td><td class="num"><b>${m.fmt(val(r.o,m.k)||0)}</b></td><td class="num">${fmt(r.o.conn)}</td><td class="num">${inr(r.o.rev)}</td></tr>`).join("")}</tbody></table>${scopeNote}`;
+  }
+  // list agents of a team
+  if(/\b(list|which|who are|members|agents in|people in)\b/.test(q) && (teams.length || product) && !metric){
+    const names = knownAgents().filter(n=>{ const t=teamFor(n); return (teams.length?teams.includes(t):true) && (!product||product==="both"||productOfTeam(t)===product); }).sort();
+    return `<p>${names.length} agents:</p><p>${names.map(esc).join(", ")}</p>`;
+  }
+  // single metric or summary
+  const list = statsFor(agents.length ? r=>r.agent===agents[0] : null);
+  const o = totals(list);
+  if(!o.dials && !o.orders && !o.frt.length) return `I couldn't find any data for that. ${agents.length?"":"If you meant an agent, check the spelling."}`+scopeNote;
+  const title = agents.length ? agents[0] : teams.length ? teams[0] : product&&product!=="both" ? product : "All agents";
+  if(metric && !/summary|how (did|is|was)|perform|doing|overview|report|status/.test(q)){
+    const v = val(o,metric.k);
+    let extraTxt = "";
+    if(metric.k==="frt") extraTxt = o.frt.length ? ` across ${fmt(o.frt.length)} leads (average ${hms(mean(o.frt))}; ${pct(o.frt.filter(s=>s<=300).length,o.frt.length)} within 5 min)` : "";
+    if(metric.k==="rev") extraTxt = ` from ${fmt(o.orders)} orders`;
+    if(metric.k==="conn") extraTxt = ` out of ${fmt(o.uniq)} unique numbers dialed (${pct(o.conn,o.uniq)})`;
+    if(metric.k==="uniq") extraTxt = ` (${fmt(o.dials)} dials including repeats)`;
+    if(metric.k==="ach") extraTxt = ` — ${fmt(o.conn)} of ${fmt(o.target)} unique connects`;
+    if(metric.k==="frt" && !o.frt.length) return "No FRT data for that scope."+scopeNote;
+    return `<p>${esc(title)} — <b>${metric.label}: ${metric.fmt(v||0)}</b>${extraTxt}.</p>${scopeNote}`;
+  }
+  return summary(o, `${title} · ${range.label}`) + (agents.length||list.length<=1 ? "" : `<span class="scope">${o.agents} active agents</span>`) + scopeNote;
+}
+
+/* ---------- start ---------- */
+if(state.view!=="overview"){ document.querySelectorAll(".views button").forEach(b=>b.setAttribute("aria-selected", b.dataset.view===state.view)); VIEWS.forEach(k=>$("view-"+k).hidden = k!==state.view); state.range="month"; }
+{ const [f,t]=rangeDates(state.range); state.from=f; state.to=t; $("from").value=f; $("to").value=t; document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.range===state.range)); }
+addSectionTools();
+if(CONFIG.LOGO_URL){ const m=$("brandMark"); const img=document.createElement("img"); img.src=CONFIG.LOGO_URL; img.alt="Frido"; img.className="logo"; img.onerror=()=>img.replaceWith(m); m.replaceWith(img); }
+if(CONFIG.LOGO_URL){ const i=document.createElement("img"); i.src=CONFIG.LOGO_URL; i.alt="Frido"; $("loginLogo").appendChild(i); }
+if(CONFIG.DATA_URL){ const saved = store.get("frido_auth"); if(saved && saved.token && saved.exp>Date.now()){ Object.assign(AUTH,saved); hideLogin(); load("all"); } else showLogin(); }
+else load("all");
+if(CONFIG.AUTO_REFRESH_MINUTES>0) setInterval(()=>{ if(!loading && (!CONFIG.DATA_URL || AUTH.token)) load("auto"); }, CONFIG.AUTO_REFRESH_MINUTES*60000);
+</script>
+</body>
+</html>
